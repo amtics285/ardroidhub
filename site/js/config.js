@@ -10,7 +10,7 @@ export const firebaseConfig = {
 };
 
 // Filled in automatically by the deploy workflow.
-export const WORKER_URL = "__WORKER_URL__";
+export const WORKER_URL = "https://ardroidhub-upload.ardroidhub.workers.dev";
 
 export const CATEGORIES = [
   "Tools", "Games", "Social", "Education", "Entertainment", "Productivity",
