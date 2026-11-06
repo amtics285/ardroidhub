@@ -1,8 +1,9 @@
 import {
   auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
-  sendEmailVerification, sendPasswordResetEmail, doc, setDoc, serverTimestamp,
+  sendPasswordResetEmail, doc, setDoc, serverTimestamp,
 } from "../fb.js";
 import { html, render, $, toast } from "../ui.js";
+import { sendCode } from "../mail.js";
 
 const AUTH_ERRORS = {
   "auth/email-already-in-use": "This email is already registered. Try logging in.",
@@ -147,9 +148,15 @@ export function renderRegister(el, _p, user) {
       await setDoc(doc(db, "developersPrivate", cred.user.uid), {
         phone: f.phone.value.trim(), email: cred.user.email, createdAt: serverTimestamp(),
       });
-      await sendEmailVerification(cred.user);
-      toast("Account created. Check your email to verify it.", "ok");
-      location.hash = "#/dashboard";
+      // Our bot emails a 6-digit code. If that fails the verify page has a "Send me a code" button.
+      try {
+        await sendCode();
+        toast("Account created. We sent a code to your email.", "ok");
+      } catch (ex) {
+        console.error(ex);
+        toast("Account created. Press 'Send me a code' to get your email code.");
+      }
+      location.hash = "#/verify";
     } catch (ex) {
       fail(friendly(ex));
       busy(btn, false, "Create account");

@@ -25,7 +25,7 @@ for (const f of ["ui.js", "config.js"]) {
 const files = [];
 (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith(".js") && files.push(path.join(d, e.name)); })(root);
 // names the Firebase SDK really exports (modular v10)
-const FIREBASE = new Set(`auth db app onAuthStateChanged signOut createUserWithEmailAndPassword signInWithEmailAndPassword updateProfile sendEmailVerification sendPasswordResetEmail doc setDoc serverTimestamp collection query where getDocs limit getDoc addDoc updateDoc deleteField deleteDoc onSnapshot`.split(" "));
+const FIREBASE = new Set(`auth db app onAuthStateChanged signOut createUserWithEmailAndPassword signInWithEmailAndPassword updateProfile sendPasswordResetEmail doc setDoc serverTimestamp collection query where getDocs limit getDoc addDoc updateDoc deleteField deleteDoc onSnapshot`.split(" "));
 let checked = 0;
 for (const f of files) {
   const src = fs.readFileSync(f, "utf8");
@@ -34,12 +34,13 @@ for (const f of files) {
     const target = m[2];
     for (const n of names) {
       checked++;
-      if (/\/ui\.js$/.test(target)) assert.ok(exportsOf["ui.js"].has(n), `${f}: ui.js has no export ${n}`);
-      else if (/\/config\.js$/.test(target)) assert.ok(exportsOf["config.js"].has(n), `${f}: config.js has no export ${n}`);
-      else if (/\/fb\.js$/.test(target)) assert.ok(FIREBASE.has(n), `${f}: unknown firebase name ${n}`);
-      else if (/\/pages\//.test(target) || /\.\/pages\//.test(target)) {
+      if (/\/fb\.js$/.test(target)) assert.ok(FIREBASE.has(n), `${f}: unknown firebase name ${n}`);
+      else if (target.startsWith(".")) {
         const dest = path.join(path.dirname(f), target);
-        assert.ok(new RegExp(`export (async )?function ${n}\\b`).test(fs.readFileSync(dest, "utf8")), `${f}: ${dest} has no export ${n}`);
+        const src2 = fs.readFileSync(dest, "utf8");
+        const esc = n.replace(/\$/g, "\\$");
+        const ok = new RegExp(`export (?:async )?(?:function|const|let) ${esc}(?![\\w$])`).test(src2);
+        assert.ok(ok, `${f}: ${dest} has no export ${n}`);
       }
     }
   }

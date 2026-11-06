@@ -41,13 +41,34 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Private developer details (phone, email). Only the owner can read or write.
+    // Private developer details (phone, email) plus the counters that rate-limit the email codes.
+    // The Worker updates the counters AS the user, so these rules are what enforce the limits:
+    //  - a new code needs 60 s since the last one, and at most 20 codes per account
+    //  - at most 30 code guesses per account, counted one by one (no parallel guessing)
     match /developersPrivate/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
-      allow create, update: if signedIn() && request.auth.uid == uid
+
+      allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['phone', 'email', 'createdAt'])
         && request.resource.data.phone is string
         && request.resource.data.phone.size() <= 20;
+
+      allow update: if signedIn() && request.auth.uid == uid && (
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastCodeAt', 'codesSent'])
+          && request.resource.data.codesSent == resource.data.get('codesSent', 0) + 1
+          && request.resource.data.codesSent <= 20
+          && (!('lastCodeAt' in resource.data)
+              || request.time > resource.data.lastCodeAt + duration.value(60, 's'))
+          && request.resource.data.lastCodeAt > request.time - duration.value(30, 's')
+          && request.resource.data.lastCodeAt <= request.time + duration.value(5, 's')
+        ) || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifyTries'])
+          && request.resource.data.verifyTries == resource.data.get('verifyTries', 0) + 1
+          && request.resource.data.verifyTries <= 30
+        )
+      );
+
       allow delete: if false;
     }
 

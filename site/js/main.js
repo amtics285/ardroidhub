@@ -6,6 +6,7 @@ import { renderLogin, renderRegister, renderReset } from "./pages/auth.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderUpload } from "./pages/upload.js";
 import { renderTerms } from "./pages/terms.js";
+import { renderVerify } from "./pages/verify.js";
 
 const view = $("#view");
 let cleanup = null; // unsubscribe function of the current page
@@ -38,6 +39,7 @@ const routes = [
   [/^#\/reset$/, renderReset],
   [/^#\/dashboard$/, renderDashboard],
   [/^#\/upload(?:\/([A-Za-z0-9]+))?$/, renderUpload],
+  [/^#\/verify$/, renderVerify],
   [/^#\/terms$/, renderTerms],
 ];
 

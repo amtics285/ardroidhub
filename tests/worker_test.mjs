@@ -3,9 +3,10 @@ import worker from "../worker/src/index.js";
 import assert from "node:assert/strict";
 
 const PROJECT = "test-project";
+const MAIL_KEY = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
 const env = {
   FIREBASE_PROJECT_ID: PROJECT, GH_OWNER: "o", GH_REPO: "r", GH_PAT: "pat",
-  ALLOWED_ORIGIN: "https://site.example",
+  ALLOWED_ORIGIN: "https://site.example", MAIL_KEY, CODE_SECRET: "test-code-secret",
 };
 const ORIGIN = "https://site.example";
 const APP = "aB3dE5gH7jK9mN1pQ3rS";
@@ -27,10 +28,12 @@ async function makeToken(over = {}, kid = "k1") {
 }
 
 /* ---- fake backends ---- */
-let appDoc, draftAssets, log;
+let appDoc, draftAssets, log, priv, dispatches;
 function reset() {
   appDoc = { ownerUid: "user1", status: "draft" };
+  priv = { codesSent: 0, verifyTries: 0, lastCodeAt: 0 }; // developersPrivate/user1
   draftAssets = [];
+  dispatches = [];
   log = [];
 }
 globalThis.fetch = async (url, init = {}) => {
@@ -38,6 +41,28 @@ globalThis.fetch = async (url, init = {}) => {
   const method = init.method || "GET";
   const respond = (code, body) => new Response(body === undefined ? null : JSON.stringify(body), { status: code });
   if (url.includes("googleapis.com/service_accounts")) return respond(200, { keys: [jwk] });
+  if (url.includes("firestore.googleapis.com") && url.includes("/developersPrivate/")) {
+    log.push(`${method} firestore-private`);
+    if (!priv) return respond(404, {});
+    if (method === "GET") {
+      const f = { codesSent: { integerValue: String(priv.codesSent) }, verifyTries: { integerValue: String(priv.verifyTries) } };
+      if (priv.lastCodeAt) f.lastCodeAt = { timestampValue: new Date(priv.lastCodeAt).toISOString() };
+      return respond(200, { fields: f });
+    }
+    // PATCH: behave like the security rules (+1 steps only, 60 s cooldown, caps)
+    const f = JSON.parse(init.body).fields;
+    if (f.codesSent) {
+      const n = Number(f.codesSent.integerValue);
+      const at = Date.parse(f.lastCodeAt.timestampValue);
+      if (n !== priv.codesSent + 1 || n > 20 || Date.now() < priv.lastCodeAt + 60000 || Math.abs(Date.now() - at) > 30000) return respond(403, {});
+      priv.codesSent = n; priv.lastCodeAt = at;
+    } else if (f.verifyTries) {
+      const n = Number(f.verifyTries.integerValue);
+      if (n !== priv.verifyTries + 1 || n > 30) return respond(403, {});
+      priv.verifyTries = n;
+    } else return respond(403, {});
+    return respond(200, {});
+  }
   if (url.includes("firestore.googleapis.com")) {
     log.push(`${method} firestore`);
     if (!appDoc) return respond(404, {});
@@ -58,7 +83,12 @@ globalThis.fetch = async (url, init = {}) => {
       return respond(200, [{ id: 7, draft: true, name: "pending-" + APP, assets: draftAssets }]);
     }
     if (method === "DELETE") { draftAssets = draftAssets.filter((a) => !path.endsWith("/" + a.id)); return respond(204); }
-    if (path.endsWith("/dispatches")) { log.push("DISPATCH " + init.body); return respond(204); }
+    if (path.endsWith("/dispatches")) {
+      const wf = path.split("/workflows/")[1].split("/")[0];
+      dispatches.push({ wf, ...JSON.parse(init.body) });
+      log.push("DISPATCH " + wf);
+      return respond(204);
+    }
   }
   return respond(500, { error: "unexpected " + method + " " + url });
 };
@@ -160,8 +190,7 @@ await test("submit ok -> status pending + workflow dispatched with the app id", 
   const r = await call(`/submit?appId=${APP}`, { token: await makeToken() });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(appDoc.status, "pending");
-  const d = log.find((l) => l.startsWith("DISPATCH"));
-  assert.deepEqual(JSON.parse(d.slice(9)), { ref: "main", inputs: { app_id: APP, action: "review" } });
+  assert.deepEqual(dispatches, [{ wf: "review.yml", ref: "main", inputs: { app_id: APP, action: "review" } }]);
 });
 await test("submit again while pending re-dispatches but does not touch Firestore status", async () => {
   appDoc.status = "pending";
@@ -173,6 +202,122 @@ await test("submit again while pending re-dispatches but does not touch Firestor
 await test("half-uploaded asset (state != uploaded) does not count", async () => {
   draftAssets.push(...["icon.png", "ss1.png", "ss2.jpg"].map((name, i) => ({ id: i + 1, name, state: "uploaded" })), { id: 9, name: "app.apk", state: "starter" });
   assert.equal((await call(`/submit?appId=${APP}`, { token: await makeToken() })).status, 400);
+});
+
+/* ---------- email codes ---------- */
+import { webcrypto } from "node:crypto";
+async function decryptPayload(b64u) {
+  const raw = Buffer.from(b64u, "base64url");
+  const key = await webcrypto.subtle.importKey("raw", Buffer.from(MAIL_KEY, "base64"), "AES-GCM", false, ["decrypt"]);
+  const pt = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: raw.subarray(0, 12) }, key, raw.subarray(12));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+const unverified = () => makeToken({ email_verified: false, email: "Dev@Example.com", name: "Dev One" });
+const sendCodeReq = async (t) => call("/email/send", { token: t ?? (await unverified()) });
+const verifyReq = async (code, t) => call("/email/verify", { token: t ?? (await unverified()), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+const issuedCode = async () => (await decryptPayload(dispatches.at(-1).inputs.payload)).code;
+
+await test("email/send: unverified user gets an ENCRYPTED payload, public input never shows the email or code", async () => {
+  const r = await sendCodeReq();
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].wf, "send-code.yml");
+  const raw = JSON.stringify(dispatches[0]);
+  assert.ok(!raw.includes("example.com") && !raw.toLowerCase().includes("dev one"), "plaintext leaked in dispatch");
+  const data = await decryptPayload(dispatches[0].inputs.payload);
+  assert.equal(data.to, "Dev@Example.com");
+  assert.match(data.code, /^\d{6}$/);
+  assert.equal(priv.codesSent, 1);
+  if (process.env.INTEROP_OUT) {
+    const fs = await import("node:fs");
+    fs.writeFileSync(process.env.INTEROP_OUT, JSON.stringify({ payload: dispatches[0].inputs.payload, key: MAIL_KEY, to: data.to, code: data.code }));
+  }
+});
+await test("email/send: needs a login, bad tokens fail", async () => {
+  assert.equal((await call("/email/send")).status, 401);
+  assert.equal((await call("/email/send", { token: "a.b.c" })).status, 401);
+});
+await test("email/send: already verified -> nothing sent", async () => {
+  const r = await sendCodeReq(await makeToken());
+  assert.equal(r.json.already, true);
+  assert.equal(dispatches.length, 0);
+});
+await test("email/send: 60 s cooldown and 20-code cap", async () => {
+  assert.equal((await sendCodeReq()).status, 200);
+  const again = await sendCodeReq();
+  assert.equal(again.status, 429); assert.match(again.json.error, /wait/);
+  assert.equal(dispatches.length, 1);
+  priv.lastCodeAt = 0; priv.codesSent = 20;
+  const capped = await sendCodeReq();
+  assert.equal(capped.status, 429); assert.match(capped.json.error, /Too many/);
+});
+await test("email/send: if the rules deny the counter update (race), no email is sent", async () => {
+  priv.lastCodeAt = Date.now() - 61000;          // Worker thinks it is fine ...
+  const realPatch = globalThis.fetch;
+  globalThis.fetch = async (u, i = {}) => (String(u).includes("/developersPrivate/") && i.method === "PATCH" ? new Response("{}", { status: 403 }) : realPatch(u, i));
+  const r = await sendCodeReq();
+  globalThis.fetch = realPatch;
+  assert.equal(r.status, 429);
+  assert.equal(dispatches.length, 0);
+});
+await test("email/send: missing developer profile -> 400", async () => {
+  priv = null;
+  assert.equal((await sendCodeReq()).status, 400);
+});
+await test("email/verify: right code -> verify-email workflow with the uid from the TOKEN", async () => {
+  await sendCodeReq();
+  const code = await issuedCode();
+  const r = await verifyReq(code);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(dispatches.at(-1), { wf: "verify-email.yml", ref: "main", inputs: { uid: "user1" } });
+});
+await test("email/verify: wrong code, malformed code, wrong user", async () => {
+  await sendCodeReq();
+  const code = await issuedCode();
+  const wrong = code === "000000" ? "000001" : "000000";
+  assert.equal((await verifyReq(wrong)).status, 400);
+  assert.equal((await verifyReq("12ab56")).status, 400);
+  assert.equal((await verifyReq("12345")).status, 400);
+  // same code, different account (other uid) must not work
+  const other = await makeToken({ email_verified: false, email: "Dev@Example.com", sub: "user2" });
+  priv = { codesSent: 0, verifyTries: 0, lastCodeAt: 0 };
+  assert.equal((await verifyReq(code, other)).status, 400);
+  // same code but the account email differs
+  const other2 = await makeToken({ email_verified: false, email: "x@example.com" });
+  assert.equal((await verifyReq(code, other2)).status, 400);
+  assert.ok(!dispatches.some((d) => d.wf === "verify-email.yml"));
+});
+await test("email/verify: previous 10-minute window still works, two windows ago does not", async () => {
+  await sendCodeReq();
+  const realNow = Date.now;
+  const code = await issuedCode();
+  Date.now = () => realNow() + 600 * 1000;
+  assert.equal((await verifyReq(code)).status, 200);
+  Date.now = () => realNow() + 1300 * 1000;
+  priv.verifyTries = 0;
+  assert.equal((await verifyReq(code)).status, 400);
+  Date.now = realNow;
+});
+await test("email/verify: guesses are counted and capped at 30", async () => {
+  for (let i = 0; i < 30; i++) assert.equal((await verifyReq("000000")).status === 429 ? "capped" : "ok", "ok", "capped too early at " + i);
+  assert.equal(priv.verifyTries, 30);
+  const r = await verifyReq("000000");
+  assert.equal(r.status, 429);
+  // even the RIGHT code is refused once the cap is hit
+  await (async () => { priv.lastCodeAt = 0; await sendCodeReq(); })();
+  assert.equal((await verifyReq(await issuedCode())).status, 429);
+});
+await test("email/verify: verified user -> already", async () => {
+  assert.equal((await verifyReq("123456", await makeToken())).json.already, true);
+  assert.equal(dispatches.length, 0);
+});
+await test("email codes need server config (no secret -> 500, never a weak code)", async () => {
+  const saved = env.CODE_SECRET; delete env.CODE_SECRET;
+  assert.equal((await sendCodeReq()).status, 500);
+  env.CODE_SECRET = saved;
+  const savedKey = env.MAIL_KEY; env.MAIL_KEY = "c2hvcnQ=";
+  assert.equal((await sendCodeReq()).status, 500);
+  env.MAIL_KEY = savedKey;
 });
 
 console.log(`\n${passed} worker tests passed`);

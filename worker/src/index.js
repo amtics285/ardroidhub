@@ -36,6 +36,10 @@ export default {
           return json(await handleUpload(request, env, url), 200, cors);
         case '/submit':
           return json(await handleSubmit(request, env, url), 200, cors);
+        case '/email/send':
+          return json(await handleEmailSend(request, env), 200, cors);
+        case '/email/verify':
+          return json(await handleEmailVerify(request, env), 200, cors);
         default:
           throw new HttpError(404, 'Not found');
       }
@@ -137,6 +141,156 @@ async function handleSubmit(request, env, url) {
   return { ok: true };
 }
 
+/* ---------- email verification codes ---------- */
+// The code is derived with HMAC(CODE_SECRET, uid|email|10-minute-window), so the Worker stores nothing.
+// The email itself is sent by a GitHub Actions workflow. The workflow input is AES-GCM encrypted
+// (the repo is public, so run inputs are visible to everyone). Rate limits are enforced by the
+// Firestore security rules on developersPrivate/{uid}; the Worker only talks to Firestore as the user.
+
+const CODE_WINDOW_SECONDS = 600;
+const MAX_CODES = 20; // per account (mirrors firestore.rules)
+const MAX_TRIES = 30; // per account (mirrors firestore.rules)
+const RESEND_SECONDS = 60;
+
+const enc = new TextEncoder();
+const codeWindow = (offset = 0) => Math.floor(Date.now() / 1000 / CODE_WINDOW_SECONDS) - offset;
+
+function bytesFromBase64(b64) {
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function base64url(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function makeCode(env, uid, email, windowNo) {
+  if (!env.CODE_SECRET) throw new HttpError(500, 'Email codes are not configured');
+  const key = await crypto.subtle.importKey('raw', enc.encode(env.CODE_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(`${uid}|${email.toLowerCase()}|${windowNo}`));
+  return String(new DataView(sig).getUint32(0) % 1000000).padStart(6, '0');
+}
+
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+async function encryptForBot(env, data) {
+  if (!env.MAIL_KEY) throw new HttpError(500, 'Email codes are not configured');
+  const raw = bytesFromBase64(env.MAIL_KEY.trim());
+  if (raw.length !== 32) throw new HttpError(500, 'Email codes are not configured');
+  const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(data))));
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv);
+  out.set(ct, iv.length);
+  return base64url(out);
+}
+
+async function getPrivate(env, auth) {
+  const r = await fetch(`${fsBase(env)}/developersPrivate/${auth.uid}`, { headers: { Authorization: 'Bearer ' + auth.token } });
+  if (r.status === 404 || r.status === 403) throw new HttpError(400, 'Developer profile not found. Please sign up again.');
+  if (!r.ok) throw new HttpError(502, 'Database error');
+  const f = (await r.json()).fields || {};
+  return {
+    codesSent: Number(f.codesSent?.integerValue || 0),
+    verifyTries: Number(f.verifyTries?.integerValue || 0),
+    lastCodeAt: f.lastCodeAt?.timestampValue ? Date.parse(f.lastCodeAt.timestampValue) : 0,
+  };
+}
+
+async function patchPrivate(env, auth, fields, deniedMessage) {
+  const mask = Object.keys(fields).map((k) => 'updateMask.fieldPaths=' + k).join('&');
+  const r = await fetch(`${fsBase(env)}/developersPrivate/${auth.uid}?${mask}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + auth.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  if (r.status === 403) throw new HttpError(429, deniedMessage);
+  if (!r.ok) {
+    console.error('patchPrivate failed', r.status, await r.text());
+    throw new HttpError(502, 'Database error');
+  }
+}
+
+async function dispatch(env, workflow, inputs) {
+  const r = await gh(env, `/repos/${env.GH_OWNER}/${env.GH_REPO}/actions/workflows/${workflow}/dispatches`, {
+    method: 'POST',
+    body: JSON.stringify({ ref: 'main', inputs }),
+  });
+  if (!r.ok) {
+    console.error('Dispatch failed', workflow, r.status, await r.text());
+    throw new HttpError(502, 'Could not start the email bot. Please try again.');
+  }
+}
+
+// Fail early (before any counter is used up) when the server is not configured.
+function assertMailConfigured(env) {
+  let keyLen = 0;
+  try {
+    keyLen = bytesFromBase64((env.MAIL_KEY || '').trim()).length;
+  } catch { /* invalid base64 */ }
+  if (!env.CODE_SECRET || keyLen !== 32) throw new HttpError(500, 'Email codes are not configured');
+}
+
+async function handleEmailSend(request, env) {
+  assertMailConfigured(env);
+  const auth = await authenticate(request, env, { requireVerified: false });
+  if (auth.verified) return { ok: true, already: true };
+  if (!auth.email) throw new HttpError(400, 'Your account has no email address');
+
+  const priv = await getPrivate(env, auth);
+  const waitMs = priv.lastCodeAt + RESEND_SECONDS * 1000 - Date.now();
+  if (waitMs > 0) throw new HttpError(429, `Please wait ${Math.ceil(waitMs / 1000)} seconds before asking for a new code.`);
+  if (priv.codesSent >= MAX_CODES) throw new HttpError(429, 'Too many codes were requested for this account. Please contact support.');
+
+  await patchPrivate(
+    env, auth,
+    {
+      lastCodeAt: { timestampValue: new Date().toISOString() },
+      codesSent: { integerValue: String(priv.codesSent + 1) },
+    },
+    'Please wait a minute before asking for a new code.'
+  );
+
+  const code = await makeCode(env, auth.uid, auth.email, codeWindow());
+  const payload = await encryptForBot(env, { to: auth.email, code, name: auth.name, ts: Date.now() });
+  await dispatch(env, 'send-code.yml', { payload });
+  return { ok: true, resendIn: RESEND_SECONDS };
+}
+
+async function handleEmailVerify(request, env) {
+  assertMailConfigured(env);
+  const auth = await authenticate(request, env, { requireVerified: false });
+  if (auth.verified) return { ok: true, already: true };
+  let body = {};
+  try {
+    body = await request.json();
+  } catch { /* handled below */ }
+  const code = String(body.code || '').trim();
+  if (!/^\d{6}$/.test(code)) throw new HttpError(400, 'Enter the 6-digit code from your email.');
+
+  const priv = await getPrivate(env, auth);
+  if (priv.verifyTries >= MAX_TRIES) throw new HttpError(429, 'Too many wrong codes. Please contact support.');
+  // Count the attempt first. The rules only allow +1 steps, so parallel guessing is not possible.
+  await patchPrivate(env, auth, { verifyTries: { integerValue: String(priv.verifyTries + 1) } }, 'Too many tries. Please slow down.');
+
+  // Accept the current and the previous window, so a code is valid for at least 10 minutes.
+  const wanted = [await makeCode(env, auth.uid, auth.email, codeWindow()), await makeCode(env, auth.uid, auth.email, codeWindow(1))];
+  const ok = wanted.some((w) => safeEqual(w, code));
+  if (!ok) throw new HttpError(400, 'That code is wrong or has expired. Ask for a new code.');
+
+  await dispatch(env, 'verify-email.yml', { uid: auth.uid });
+  return { ok: true };
+}
+
 /* ---------- auth ---------- */
 
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
@@ -201,12 +355,13 @@ async function verifyIdToken(token, projectId) {
   return payload;
 }
 
-async function authenticate(request, env) {
+async function authenticate(request, env, { requireVerified = true } = {}) {
   const m = /^Bearer (.+)$/.exec(request.headers.get('Authorization') || '');
   if (!m) throw new HttpError(401, 'Please log in first');
   const payload = await verifyIdToken(m[1], env.FIREBASE_PROJECT_ID);
-  if (payload.email_verified !== true) throw new HttpError(403, 'Please verify your email first');
-  return { uid: payload.sub, token: m[1] };
+  const verified = payload.email_verified === true;
+  if (requireVerified && !verified) throw new HttpError(403, 'Please verify your email first');
+  return { uid: payload.sub, token: m[1], email: payload.email || '', name: payload.name || '', verified };
 }
 
 /* ---------- Firestore (as the user, so security rules apply) ---------- */

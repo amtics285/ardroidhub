@@ -1,6 +1,4 @@
-import {
-  auth, db, collection, query, where, onSnapshot, doc, deleteDoc, sendEmailVerification,
-} from "../fb.js";
+import { auth, db, collection, query, where, onSnapshot, doc, deleteDoc } from "../fb.js";
 import { html, render, $, $$, badge, STATUS, toast } from "../ui.js";
 
 function reportList(a) {
@@ -47,8 +45,8 @@ export function renderDashboard(el, _p, user) {
     ? ""
     : html`<div class="notice">
         Please verify your email (<b>${user.email}</b>) before publishing apps.
-        <button class="btn small" id="resend" type="button">Resend email</button>
-        <button class="btn small ghost" id="recheck" type="button">I verified it</button>
+        <a class="btn small" href="#/verify">Enter email code</a>
+        <button class="btn small ghost" id="recheck" type="button">I already verified</button>
       </div>`;
 
   render(el, html`
@@ -58,14 +56,6 @@ export function renderDashboard(el, _p, user) {
     <div id="list"><div class="muted">Loading…</div></div>`);
 
   if (!user.emailVerified) {
-    $("#resend").onclick = async () => {
-      try {
-        await sendEmailVerification(user);
-        toast("Verification email sent.", "ok");
-      } catch {
-        toast("Please wait a little before asking again.", "err");
-      }
-    };
     $("#recheck").onclick = async () => {
       await user.reload();
       await user.getIdToken(true);

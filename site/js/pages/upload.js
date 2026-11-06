@@ -103,8 +103,8 @@ export async function renderUpload(el, [existingId], user) {
   }
   if (!user.emailVerified) {
     render(el, html`<div class="empty"><h2>Verify your email first</h2>
-      <p>We sent a link to <b>${user.email}</b>. After you click it, come back here.</p>
-      <p><a class="btn" href="#/dashboard">Go to dashboard</a></p></div>`);
+      <p>Enter the 6-digit code we email to <b>${user.email}</b>, then come back here.</p>
+      <p><a class="btn" href="#/verify">Enter email code</a></p></div>`);
     return;
   }
 

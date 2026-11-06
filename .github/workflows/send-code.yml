@@ -1,0 +1,36 @@
+name: Send email code
+
+# Started by the Cloudflare Worker. The input is AES-GCM encrypted (it contains the email address
+# and the code), so the public run page shows only random-looking text.
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: Encrypted payload
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: bot
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography
+      - name: Send the code
+        working-directory: bot
+        env:
+          PAYLOAD: ${{ inputs.payload }}
+          MAIL_KEY: ${{ secrets.MAIL_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: python send_code.py
