@@ -3,7 +3,8 @@
 // (drafts are invisible to the public) and queues the review bot.
 
 import { smtpSend } from './smtp.js';
-import { setEmailVerified } from './gauth.js';
+import { setEmailVerified, adminGet, adminCommit, fsDocName } from './gauth.js';
+import { hasBlockedWord } from './words.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -43,6 +44,12 @@ export default {
           return json(await handleEmailSend(request, env), 200, cors);
         case '/email/verify':
           return json(await handleEmailVerify(request, env), 200, cors);
+        case '/download':
+          return json(await handleDownload(request, env), 200, cors);
+        case '/review':
+          return json(await handleReview(request, env), 200, cors);
+        case '/review/delete':
+          return json(await handleReviewDelete(request, env), 200, cors);
         default:
           throw new HttpError(404, 'Not found');
       }
@@ -339,6 +346,108 @@ async function handleEmailVerify(request, env) {
     console.error('Direct verify failed, using the workflow instead:', e && e.message);
   }
   await dispatch(env, 'verify-email.yml', { uid: auth.uid });
+  return { ok: true };
+}
+
+/* ---------- downloads and reviews ---------- */
+// Counters live on the app document (downloads, ratingSum, ratingCount, reviewCount). People can not
+// write them from the browser (Firestore rules), only this Worker can, using the service account.
+
+const ints = (f, k) => Number(f?.[k]?.integerValue || 0);
+const str = (f, k) => f?.[k]?.stringValue || '';
+
+async function readJson(request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new HttpError(400, 'Bad request');
+  }
+}
+
+function increments(env, appId, deltas) {
+  const fieldTransforms = Object.entries(deltas)
+    .filter(([, n]) => n !== 0)
+    .map(([fieldPath, n]) => ({ fieldPath, increment: { integerValue: String(n) } }));
+  return fieldTransforms.length ? [{ transform: { document: fsDocName(env, `apps/${appId}`), fieldTransforms } }] : [];
+}
+
+async function loadPublicApp(env, appId) {
+  if (!APP_ID_RE.test(appId || '')) throw new HttpError(400, 'Bad app id');
+  let f;
+  try {
+    f = await adminGet(env, `apps/${appId}`);
+  } catch (e) {
+    console.error('app read failed', e && e.message);
+    throw new HttpError(500, 'Server is not ready for this yet');
+  }
+  if (!f || str(f, 'status') !== 'approved') throw new HttpError(404, 'App not found');
+  return f;
+}
+
+// Best-effort limit per IP+app inside one Worker instance; the website also counts once per day per browser.
+const recentDownloads = new Map();
+
+async function handleDownload(request, env) {
+  const { appId } = await readJson(request);
+  await loadPublicApp(env, appId);
+  const key = (request.headers.get('CF-Connecting-IP') || 'unknown') + '|' + appId;
+  const now = Date.now();
+  if (recentDownloads.size > 5000) recentDownloads.clear();
+  if (now - (recentDownloads.get(key) || 0) < 30000) return { ok: true, counted: false };
+  recentDownloads.set(key, now);
+  await adminCommit(env, increments(env, appId, { downloads: 1 }));
+  return { ok: true, counted: true };
+}
+
+async function handleReview(request, env) {
+  const auth = await authenticate(request, env); // verified email required
+  const body = await readJson(request);
+  const rating = Number(body.rating);
+  const text = String(body.text ?? '').trim();
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new HttpError(400, 'Choose 1 to 5 stars.');
+  if (text.length > 500) throw new HttpError(400, 'Your review is too long (max 500 characters).');
+  if (hasBlockedWord(text)) throw new HttpError(400, 'Please keep your review respectful. Abusive or adult words are not allowed.');
+
+  const app = await loadPublicApp(env, body.appId);
+  if (str(app, 'ownerUid') === auth.uid) throw new HttpError(403, 'You can not review your own app.');
+
+  const path = `apps/${body.appId}/reviews/${auth.uid}`;
+  const old = await adminGet(env, path);
+  const name = (auth.name || 'AR DroidHub user').replace(/[^\p{L}\p{N} .'-]/gu, '').slice(0, 40).trim() || 'AR DroidHub user';
+  const nowIso = new Date().toISOString();
+  const fields = {
+    rating: { integerValue: String(rating) },
+    text: { stringValue: text },
+    userName: { stringValue: name },
+    userId: { stringValue: auth.uid },
+    updatedAt: { timestampValue: nowIso },
+  };
+  if (!old) fields.createdAt = { timestampValue: nowIso };
+  const mask = Object.keys(fields);
+
+  const writes = [
+    { update: { name: fsDocName(env, path), fields }, updateMask: { fieldPaths: mask } },
+    ...increments(env, body.appId, {
+      ratingSum: rating - (old ? ints(old, 'rating') : 0),
+      ratingCount: old ? 0 : 1,
+      reviewCount: (text ? 1 : 0) - (old && str(old, 'text') ? 1 : 0),
+    }),
+  ];
+  await adminCommit(env, writes);
+  return { ok: true };
+}
+
+async function handleReviewDelete(request, env) {
+  const auth = await authenticate(request, env);
+  const { appId } = await readJson(request);
+  if (!APP_ID_RE.test(appId || '')) throw new HttpError(400, 'Bad app id');
+  const path = `apps/${appId}/reviews/${auth.uid}`;
+  const old = await adminGet(env, path);
+  if (!old) return { ok: true };
+  await adminCommit(env, [
+    { delete: fsDocName(env, path) },
+    ...increments(env, appId, { ratingSum: -ints(old, 'rating'), ratingCount: -1, reviewCount: str(old, 'text') ? -1 : 0 }),
+  ]);
   return { ok: true };
 }
 

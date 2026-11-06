@@ -41,8 +41,8 @@ export function renderAccount(el, _p, user) {
         ${dev
           ? html`<p><b>${dev.name}</b></p>
                  ${dev.about ? html`<p class="muted pre">${dev.about}</p>` : ""}
-                 <p class="actions"><a class="btn" href="#/upload">Publish an app</a>
-                 <a class="btn ghost" href="#/dashboard">Developer dashboard</a></p>`
+                 <p class="actions"><a class="btn" href="#/dashboard">Developer dashboard</a>
+                 <a class="btn ghost" href="#/upload">+ New app</a></p>`
           : html`<p class="muted">Want to publish your own Android apps on AR DroidHub? It is free.</p>
                  <p><a class="btn" href="#/become-developer">Become a developer</a></p>`}
       </section>
@@ -184,8 +184,8 @@ export function renderBecomeDeveloper(el, _p, user) {
       const about = f.about.value.trim();
       await setDoc(doc(db, "developers", user.uid), { name, about, website, createdAt: serverTimestamp() });
       setDev({ name, about, website });
-      toast("You are a developer now. You can publish your first app.", "ok");
-      location.hash = "#/upload";
+      toast("You are a developer now. Welcome!", "ok");
+      location.hash = "#/dashboard";
     } catch (ex) {
       console.error(ex);
       fail("Could not save. Please try again.");

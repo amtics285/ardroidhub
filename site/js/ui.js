@@ -77,6 +77,22 @@ export function fmtSize(bytes) {
   return mb >= 1 ? `${mb.toFixed(mb >= 10 ? 0 : 1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+// 1234 -> "1.2K", 2500000 -> "2.5M"
+export function fmtNum(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, "") + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+
+export const avgRating = (a) => (a && a.ratingCount > 0 ? a.ratingSum / a.ratingCount : 0);
+
+// Five stars, filled up to `value` (0-5), e.g. 4.3 fills 86 percent.
+export function stars(value) {
+  const pct = Math.max(0, Math.min(5, Number(value) || 0)) * 20;
+  return html`<span class="stars" role="img" aria-label="${(Number(value) || 0).toFixed(1)} out of 5 stars"><span class="stars-fill" style="width:${pct}%"></span></span>`;
+}
+
 export function fmtDate(ts) {
   const d = ts && ts.toDate ? ts.toDate() : null;
   return d ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";

@@ -25,7 +25,7 @@ for (const f of ["ui.js", "config.js"]) {
 const files = [];
 (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith(".js") && files.push(path.join(d, e.name)); })(root);
 // names the Firebase SDK really exports (modular v10)
-const FIREBASE = new Set(`auth db app onAuthStateChanged signOut createUserWithEmailAndPassword signInWithEmailAndPassword updateProfile sendPasswordResetEmail doc setDoc serverTimestamp collection query where getDocs limit getDoc addDoc updateDoc deleteField deleteDoc onSnapshot increment`.split(" "));
+const FIREBASE = new Set(`auth db app onAuthStateChanged signOut createUserWithEmailAndPassword signInWithEmailAndPassword updateProfile sendPasswordResetEmail doc setDoc serverTimestamp collection query where getDocs limit getDoc addDoc updateDoc deleteField deleteDoc onSnapshot increment orderBy`.split(" "));
 let checked = 0;
 for (const f of files) {
   const src = fs.readFileSync(f, "utf8");

@@ -1,7 +1,7 @@
 // Who is signed in, and are they a developer? Filled in by main.js on every auth change.
 import { db, doc, getDoc } from "./fb.js";
 
-export const me = { user: null, dev: null };
+export const me = { user: null, dev: null, ready: Promise.resolve() };
 
 export async function loadMe(user) {
   me.user = user;

@@ -39,10 +39,36 @@ async function accessToken(sa) {
   return cached.token;
 }
 
-export async function setEmailVerified(env, uid) {
+async function adminToken(env) {
   if (!env.FIREBASE_SERVICE_ACCOUNT) throw new Error('no service account');
-  const sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT);
-  const token = await accessToken(sa);
+  return accessToken(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT));
+}
+
+const fsRoot = (env) => `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+export const fsDocName = (env, path) => `${fsRoot(env)}/${path}`;
+
+// Read one document as the service account. Returns its fields, or null if it does not exist.
+export async function adminGet(env, path) {
+  const token = await adminToken(env);
+  const r = await fetch(`https://firestore.googleapis.com/v1/${fsDocName(env, path)}`, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('firestore get failed ' + r.status);
+  return (await r.json()).fields || {};
+}
+
+// Several writes in ONE atomic commit (so counters and reviews can never disagree).
+export async function adminCommit(env, writes) {
+  const token = await adminToken(env);
+  const r = await fetch(`https://firestore.googleapis.com/v1/${fsRoot(env)}:commit`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ writes }),
+  });
+  if (!r.ok) throw new Error('firestore commit failed ' + r.status);
+}
+
+export async function setEmailVerified(env, uid) {
+  const token = await adminToken(env);
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/accounts:update`, {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },

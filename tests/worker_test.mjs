@@ -414,4 +414,115 @@ await test("email/send: SMTP configured but unavailable here -> falls back to th
   assert.equal(dispatches.at(-1).wf, "send-code.yml");
 });
 
+/* ---------- downloads and reviews ---------- */
+import fs from "node:fs";
+import { BLOCKED_WORDS } from "../worker/src/words.js";
+
+await test("review word list covers every blocked word of the bot policy", async () => {
+  const py = fs.readFileSync("bot/policy.py", "utf8");
+  const block = py.slice(py.indexOf("BLOCKED_WORDS = ("), py.indexOf("# Piracy"));
+  const words = [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(words.length > 20);
+  for (const w of words) assert.ok(BLOCKED_WORDS.includes(w), "missing in worker/src/words.js: " + w);
+});
+
+// fake Firestore documents for the admin (service account) calls
+let store, commits;
+const resetStore = () => {
+  store = { "apps/APPX": { status: { stringValue: "approved" }, ownerUid: { stringValue: "owner9" } } };
+  commits = [];
+};
+const prevFetch = globalThis.fetch;
+globalThis.fetch = async (url, init = {}) => {
+  url = String(url);
+  const m = /\/documents\/(apps\/[^?:]+)$/.exec(url);
+  if (m && (init.method || "GET") === "GET" && url.includes("firestore.googleapis.com")) {
+    const f = store[decodeURIComponent(m[1])];
+    return new Response(JSON.stringify(f ? { fields: f } : {}), { status: f ? 200 : 404 });
+  }
+  if (url.endsWith("/documents:commit")) {
+    const { writes } = JSON.parse(init.body);
+    commits.push(writes);
+    for (const w of writes) {
+      if (w.update) store[w.update.name.split("/documents/")[1]] = { ...(store[w.update.name.split("/documents/")[1]] || {}), ...w.update.fields };
+      if (w.delete) delete store[w.delete.split("/documents/")[1]];
+    }
+    return new Response("{}", { status: 200 });
+  }
+  return prevFetch(url, init);
+};
+const ID = "APPX".padEnd(12, "x");           // valid 10+ char id
+const idPath = (id) => `apps/${id}`;
+const addApp = (id, over = {}) => { store[idPath(id)] = { status: { stringValue: "approved" }, ownerUid: { stringValue: "owner9" }, ...over }; };
+const post = (path, token, body) => call(path, { token, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const incs = (writes) => Object.fromEntries(writes.flatMap((w) => w.transform ? w.transform.fieldTransforms.map((t) => [t.fieldPath, Number(t.increment.integerValue)]) : []));
+
+await test("download: counts once, needs no login, only approved apps", async () => {
+  resetStore(); addApp(ID); addApp("DRAFTAPP12345", { status: { stringValue: "draft" } });
+  const r = await post("/download", null, { appId: ID });
+  assert.equal(r.status, 200); assert.equal(r.json.counted, true);
+  assert.deepEqual(incs(commits[0]), { downloads: 1 });
+  assert.equal((await post("/download", null, { appId: ID })).json.counted, false); // 30 s throttle
+  assert.equal((await post("/download", null, { appId: "DRAFTAPP12345" })).status, 404);
+  assert.equal((await post("/download", null, { appId: "nope" })).status, 400);
+  assert.equal((await post("/download", null, { appId: "zzzzzzzzzzzzzzzz" })).status, 404);
+});
+
+await test("review: new review writes the review and updates the counters in ONE commit", async () => {
+  resetStore(); addApp(ID);
+  const t = await makeToken({ sub: "rev1", name: "Asha <b>K</b>" });
+  const r = await post("/review", t, { appId: ID, rating: 4, text: "  Very useful app  " });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(commits.length, 1);
+  const up = commits[0].find((w) => w.update).update;
+  assert.ok(up.name.endsWith(`/apps/${ID}/reviews/rev1`));
+  assert.equal(up.fields.rating.integerValue, "4");
+  assert.equal(up.fields.text.stringValue, "Very useful app");
+  assert.equal(up.fields.userName.stringValue, "Asha bKb");   // tags stripped
+  assert.ok(up.fields.createdAt);
+  assert.deepEqual(incs(commits[0]), { ratingSum: 4, ratingCount: 1, reviewCount: 1 });
+});
+
+await test("review: editing changes only the difference, rating-only review has no text count", async () => {
+  resetStore(); addApp(ID);
+  const t = await makeToken({ sub: "rev1", name: "Asha" });
+  await post("/review", t, { appId: ID, rating: 2, text: "meh" });
+  commits.length = 0;
+  await post("/review", t, { appId: ID, rating: 5, text: "" });
+  const up = commits[0].find((w) => w.update);
+  assert.ok(!up.update.fields.createdAt && !up.updateMask.fieldPaths.includes("createdAt"));
+  assert.deepEqual(incs(commits[0]), { ratingSum: 3, reviewCount: -1 }); // count unchanged, text removed
+});
+
+await test("review: delete takes the review and its numbers away", async () => {
+  resetStore(); addApp(ID);
+  const t = await makeToken({ sub: "rev1", name: "Asha" });
+  await post("/review", t, { appId: ID, rating: 3, text: "ok app" });
+  commits.length = 0;
+  assert.equal((await post("/review/delete", t, { appId: ID })).status, 200);
+  assert.ok(commits[0].some((w) => w.delete));
+  assert.deepEqual(incs(commits[0]), { ratingSum: -3, ratingCount: -1, reviewCount: -1 });
+  commits.length = 0;
+  assert.equal((await post("/review/delete", t, { appId: ID })).status, 200); // nothing left: no-op
+  assert.equal(commits.length, 0);
+});
+
+await test("review: rules - login, verified email, valid stars, length, words, not your own app", async () => {
+  resetStore(); addApp(ID);
+  assert.equal((await post("/review", null, { appId: ID, rating: 5 })).status, 401);
+  const unv = await makeToken({ sub: "rev2", email_verified: false });
+  assert.equal((await post("/review", unv, { appId: ID, rating: 5 })).status, 403);
+  const t = await makeToken({ sub: "rev3", name: "Ravi" });
+  for (const rating of [0, 6, 2.5, "x", null]) assert.equal((await post("/review", t, { appId: ID, rating })).status, 400, String(rating));
+  assert.equal((await post("/review", t, { appId: ID, rating: 5, text: "a".repeat(501) })).status, 400);
+  const bad = await post("/review", t, { appId: ID, rating: 1, text: "you people are Chutiya" });
+  assert.equal(bad.status, 400); assert.match(bad.json.error, /respectful/);
+  assert.equal((await post("/review", await makeToken({ sub: "owner9" }), { appId: ID, rating: 5 })).status, 403);
+  addApp("DRAFTAPP12345", { status: { stringValue: "draft" } });
+  assert.equal((await post("/review", t, { appId: "DRAFTAPP12345", rating: 5 })).status, 404);
+  assert.equal(commits.length, 0, "nothing may be written for rejected reviews");
+});
+
+globalThis.fetch = prevFetch;
+
 console.log(`\n${passed} worker tests passed`);

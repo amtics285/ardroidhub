@@ -44,7 +44,7 @@ export function renderSupport(el) {
     <p>Check your spam folder and wait a minute or two. You can ask for a new code every 60 seconds on the verify page.</p>
 
     <h2>My app was rejected. What now?</h2>
-    <p>Open <b>Developer dashboard</b> in the menu. The reason is shown on the app, and you also got it by email. Fix the problem, then press <b>Fix &amp; resubmit</b>.</p>
+    <p>Open <b>Developer dashboard</b> from the menu. The reason is shown on the app, and you also got it by email. Fix the problem, then press <b>Fix &amp; resubmit</b>.</p>
 
     <h2>Report an app or ask for removal</h2>
     <p>If you think an app is harmful, copied, or uses your work, tell us the app name and the problem. We will look at it and remove it if needed.</p>
@@ -74,10 +74,14 @@ export function renderPrivacy(el) {
       <li><b>Downloaded and saved apps</b> while you are logged in, so you can see them in <b>My apps</b>. Only you can see this list, and you can remove items any time.</li>
     </ul>
 
+    <h2>If you rate or review an app</h2>
+    <p>Your name, star rating and comment are shown publicly on that app's page. You can edit or delete your review at any time. Download counts are kept as a plain number, without any personal details.</p>
+
     <h2>If you become a developer</h2>
     <ul>
       <li>Your <b>developer name, type and website</b> are public on your apps.</li>
       <li>Your app name, description, screenshots, icon, contact email and the APK are public once the app is published.</li>
+      <li>Download counts, star ratings and reviews of your app are public, and you can see them on your dashboard.</li>
       <li>We read your APK to check that it is valid and safe (package name, permissions, signature).
           Your APK is also sent to <b>VirusTotal</b>, a third-party malware scanning service, which may share samples with the security community.</li>
     </ul>

@@ -2,16 +2,11 @@ import { auth, onAuthStateChanged, signOut } from "./fb.js";
 import { $, html, render, toast } from "./ui.js";
 import { me, loadMe, initial } from "./state.js";
 import { icon } from "./icons.js";
-import { renderHome } from "./pages/home.js";
+import { renderHome, prefetchApps } from "./pages/home.js";
 import { renderApp } from "./pages/app.js";
-import { renderLogin, renderRegister, renderReset } from "./pages/auth.js";
-import { renderDashboard } from "./pages/dashboard.js";
-import { renderMyApps } from "./pages/mine.js";
-import { renderUpload } from "./pages/upload.js";
-import { renderTerms } from "./pages/terms.js";
-import { renderVerify } from "./pages/verify.js";
-import { renderAccount, renderProfile, renderBecomeDeveloper } from "./pages/account.js";
-import { renderAbout, renderCompany, renderSupport, renderPrivacy } from "./pages/info.js";
+
+// Start loading the app list right away, in parallel with the sign-in check.
+prefetchApps();
 
 const view = $("#view");
 const drawer = $("#drawer");
@@ -19,6 +14,7 @@ const scrim = $("#scrim");
 const menuBtn = $("#menuBtn");
 let cleanup = null; // unsubscribe function of the current page
 let authReady = false;
+let routeToken = 0;
 
 /* ---------- menu (hamburger drawer) ---------- */
 
@@ -70,7 +66,7 @@ function drawerContent(user) {
     ${item("#/downloads", "grid", "My apps")}
     ${item("#/profile", "edit", "Edit profile")}
     ${me.dev
-      ? html`${item("#/upload", "upload", "Publish an app", "strong")}${item("#/dashboard", "code", "Developer dashboard")}`
+      ? html`${item("#/dashboard", "chart", "Developer dashboard", "strong")}`
       : item("#/become-developer", "code", "Become a developer", "strong")}
     ${links}
     <div class="drawer-sep"></div>
@@ -112,47 +108,58 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ---------- routing ---------- */
+// Home and app pages are loaded up front; every other page is downloaded only when it is opened.
+// `needsMe` pages wait until we know whether the person is a developer.
 
+const lazy = (file, name) => async () => (await import(file))[name];
 const routes = [
-  [/^#?\/?$/, renderHome],
-  [/^#\/app\/([A-Za-z0-9]+)$/, renderApp],
-  [/^#\/login$/, renderLogin],
-  [/^#\/register$/, renderRegister],
-  [/^#\/reset$/, renderReset],
-  [/^#\/account$/, renderAccount],
-  [/^#\/profile$/, renderProfile],
-  [/^#\/become-developer$/, renderBecomeDeveloper],
-  [/^#\/dashboard$/, renderDashboard],
-  [/^#\/downloads$/, renderMyApps],
-  [/^#\/upload(?:\/([A-Za-z0-9]+))?$/, renderUpload],
-  [/^#\/verify$/, renderVerify],
-  [/^#\/terms$/, renderTerms],
-  [/^#\/about$/, renderAbout],
-  [/^#\/privacy$/, renderPrivacy],
-  [/^#\/support$/, renderSupport],
-  [/^#\/company$/, renderCompany],
+  [/^#?\/?$/, async () => renderHome],
+  [/^#\/app\/([A-Za-z0-9]+)$/, async () => renderApp],
+  [/^#\/login$/, lazy("./pages/auth.js", "renderLogin")],
+  [/^#\/register$/, lazy("./pages/auth.js", "renderRegister")],
+  [/^#\/reset$/, lazy("./pages/auth.js", "renderReset")],
+  [/^#\/account$/, lazy("./pages/account.js", "renderAccount"), true],
+  [/^#\/profile$/, lazy("./pages/account.js", "renderProfile"), true],
+  [/^#\/become-developer$/, lazy("./pages/account.js", "renderBecomeDeveloper"), true],
+  [/^#\/dashboard$/, lazy("./pages/dashboard.js", "renderDashboard"), true],
+  [/^#\/downloads$/, lazy("./pages/mine.js", "renderMyApps")],
+  [/^#\/upload(?:\/([A-Za-z0-9]+))?$/, lazy("./pages/upload.js", "renderUpload"), true],
+  [/^#\/verify$/, lazy("./pages/verify.js", "renderVerify")],
+  [/^#\/terms$/, lazy("./pages/terms.js", "renderTerms")],
+  [/^#\/about$/, lazy("./pages/info.js", "renderAbout")],
+  [/^#\/privacy$/, lazy("./pages/info.js", "renderPrivacy")],
+  [/^#\/support$/, lazy("./pages/info.js", "renderSupport")],
+  [/^#\/company$/, lazy("./pages/info.js", "renderCompany")],
 ];
 
 async function route() {
   if (!authReady) return;
+  const mine = ++routeToken;
   if (typeof cleanup === "function") {
     cleanup();
     cleanup = null;
   }
   openMenu(false);
   const path = location.hash.split("?")[0] || "#/";
-  for (const [re, fn] of routes) {
+  for (const [re, load, needsMe] of routes) {
     const m = re.exec(path);
-    if (m) {
-      window.scrollTo(0, 0);
-      try {
-        cleanup = (await fn(view, m.slice(1), auth.currentUser)) || null;
-      } catch (e) {
-        console.error(e);
-        render(view, html`<div class="empty"><h2>Something went wrong</h2><p>${e.message || "Please try again."}</p></div>`);
+    if (!m) continue;
+    window.scrollTo(0, 0);
+    try {
+      const fn = await load();
+      if (needsMe) await me.ready;
+      if (mine !== routeToken) return; // the person already went somewhere else
+      const result = (await fn(view, m.slice(1), auth.currentUser)) || null;
+      if (mine !== routeToken) {
+        if (typeof result === "function") result();
+        return;
       }
-      return;
+      cleanup = result;
+    } catch (e) {
+      console.error(e);
+      if (mine === routeToken) render(view, html`<div class="empty"><h2>Something went wrong</h2><p>${e.message || "Please try again."}</p></div>`);
     }
+    return;
   }
   render(view, html`<div class="empty"><h2>Page not found</h2><p><a href="#/">Go to the store</a></p></div>`);
 }
@@ -163,9 +170,14 @@ $("#searchForm").addEventListener("submit", (e) => {
   location.hash = q ? `#/?q=${encodeURIComponent(q)}` : "#/";
 });
 
-onAuthStateChanged(auth, async (user) => {
-  await loadMe(user);
+onAuthStateChanged(auth, (user) => {
+  // Show the page now. Whether the person is a developer is looked up in the background.
+  me.user = user;
+  me.dev = null;
   setNav(user);
+  me.ready = loadMe(user).then(() => {
+    if (auth.currentUser === user) setNav(user);
+  });
   const first = !authReady;
   authReady = true;
   route();
