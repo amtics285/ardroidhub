@@ -57,6 +57,18 @@ export function appCard(a) {
 const skeleton = html`<div class="grid">${[1, 2, 3, 4, 5, 6].map(() => html`
   <div class="card app-card"><div class="icon skel"></div><div class="app-card-text grow"><div class="skel line w60"></div><div class="skel line w40"></div><div class="skel line w80"></div></div></div>`)}</div>`;
 
+function tile(a, i) {
+  const avg = avgRating(a);
+  return html`
+    <div class="card-wrap tile-wrap"><a class="tile" href="#/app/${a.id}">
+      <span class="rank">${i + 1}</span>
+      <img class="icon" src="${a.iconUrl}" alt="" loading="lazy" decoding="async" width="88" height="88">
+      <div class="app-name">${a.name}</div>
+      <div class="muted small">${a.category}</div>
+      <div class="small tile-meta">${a.ratingCount ? html`<span class="rate">${avg.toFixed(1)} ★</span>` : html`<span class="muted">New</span>`}${a.downloads ? html`<span class="muted">${fmtNum(a.downloads)}↓</span>` : ""}</div>
+    </a></div>`;
+}
+
 export async function renderHome(el) {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
   const q = (params.get("q") || "").trim().toLowerCase();
@@ -97,7 +109,12 @@ export async function renderHome(el) {
     } else if (!filtered.length) {
       body = html`<div class="empty"><h2>Nothing found</h2><p>Try a different search or category.</p></div>`;
     } else {
+      const plain = !q && !cat;
+      const top = plain && apps.length >= 3 ? [...apps].sort((x, y) => (y.downloads || 0) - (x.downloads || 0)).slice(0, 10) : [];
+      const rated = plain && apps.length >= 3 ? [...apps].filter((x) => x.ratingCount).sort((x, y) => avgRating(y) - avgRating(x)).slice(0, 10) : [];
       body = html`
+        ${top.length ? html`<h2 class="section-title">Top downloads</h2><div class="rail">${top.map(tile)}</div>` : ""}
+        ${rated.length >= 3 ? html`<h2 class="section-title">Top rated</h2><div class="rail">${rated.map(tile)}</div>` : ""}
         <h2 class="section-title">${q || cat ? `Results (${filtered.length})` : "New & updated"}</h2>
         <div class="grid">${filtered.map(appCard)}</div>`;
     }
@@ -107,14 +124,24 @@ export async function renderHome(el) {
         <section class="hero">
           <h1>Find Android apps you can trust</h1>
           <p>Download free Android apps straight to your phone. No account needed.</p>
-          <div class="pills">
-            <span class="pill">Free downloads</span>
-            <span class="pill">Direct APK download</span>
-            <span class="pill">See permissions before you install</span>
+          <form class="hero-search" id="heroSearch" role="search">
+            <input type="search" id="heroQ" placeholder="Search apps and games" aria-label="Search apps and games" autocomplete="off">
+            <button class="btn" type="submit">Search</button>
+          </form>
+          <div class="hero-stats">
+            <div><b>${fmtNum(apps.length)}</b><span>Apps</span></div>
+            <div><b>${fmtNum(apps.reduce((n, x) => n + (x.downloads || 0), 0))}</b><span>Downloads</span></div>
+            <div><b>Free</b><span>Always</span></div>
           </div>
         </section>` : ""}
       ${chips}
       ${body}`);
+    const hs = $("#heroSearch");
+    if (hs) hs.onsubmit = (e) => {
+      e.preventDefault();
+      const v = $("#heroQ").value.trim();
+      location.hash = v ? "#/?q=" + encodeURIComponent(v) : "#/";
+    };
   };
 
   // 1) paint at once from the saved copy (or a skeleton), 2) swap in the fresh list when it arrives

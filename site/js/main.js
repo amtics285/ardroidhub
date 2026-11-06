@@ -2,6 +2,7 @@ import { auth, onAuthStateChanged, signOut } from "./fb.js";
 import { $, html, render, toast } from "./ui.js";
 import { me, loadMe, initial } from "./state.js";
 import { icon } from "./icons.js";
+import { enhanceSelects } from "./select.js";
 import { renderHome, prefetchApps } from "./pages/home.js";
 import { renderApp } from "./pages/app.js";
 
@@ -218,3 +219,5 @@ document.addEventListener("click", async (e) => {
   try { await navigator.clipboard.writeText(url); toast("Link copied", "ok"); }
   catch { window.prompt("Copy this link", url); }
 });
+
+new MutationObserver(() => enhanceSelects(view)).observe(view, { childList: true, subtree: true });
