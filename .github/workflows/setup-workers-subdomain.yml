@@ -1,0 +1,39 @@
+name: One-time - register workers.dev subdomain
+
+# Run once (Actions -> this workflow -> Run workflow). Registers the free workers.dev subdomain that the
+# upload Worker needs, using the Cloudflare token from the repo secrets. Safe to re-run.
+on:
+  workflow_dispatch:
+    inputs:
+      subdomain:
+        description: Subdomain name (letters, digits, dashes), e.g. ardroidhub
+        required: true
+        default: ardroidhub
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Register subdomain
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUB: ${{ inputs.subdomain }}
+        run: |
+          if ! echo "$SUB" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'; then
+            echo "Invalid subdomain name" >&2; exit 1
+          fi
+          api="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain"
+          current=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "$api" | jq -r '.result.subdomain // empty')
+          if [ -n "$current" ]; then
+            echo "Already registered: $current.workers.dev"; exit 0
+          fi
+          resp=$(curl -sS -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+            --data "{\"subdomain\":\"$SUB\"}" "$api")
+          echo "$resp" | jq '{success, errors, subdomain: .result.subdomain}'
+          [ "$(echo "$resp" | jq -r .success)" = "true" ]
