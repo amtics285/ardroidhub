@@ -123,6 +123,29 @@ service cloud.firestore {
         && resource.data.status in ['draft', 'rejected'];
     }
 
+    // A signed-in person's own download history and saved apps (private to them).
+    match /users/{uid}/downloads/{appId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'iconUrl', 'developerName', 'category', 'lastAt', 'count'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.iconUrl is string && request.resource.data.iconUrl.size() <= 500
+        && request.resource.data.developerName is string && request.resource.data.developerName.size() <= 100
+        && request.resource.data.category is string && request.resource.data.category.size() <= 40
+        && request.resource.data.count is int
+        && request.resource.data.count >= 1 && request.resource.data.count <= 100000;
+    }
+
+    match /users/{uid}/saved/{appId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'iconUrl', 'developerName', 'category', 'savedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.iconUrl is string && request.resource.data.iconUrl.size() <= 500
+        && request.resource.data.developerName is string && request.resource.data.developerName.size() <= 100
+        && request.resource.data.category is string && request.resource.data.category.size() <= 40;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

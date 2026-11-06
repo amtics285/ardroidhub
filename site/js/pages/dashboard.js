@@ -56,7 +56,7 @@ export function renderDashboard(el, _p, user) {
       </div>`;
 
   render(el, html`
-    <h1>My apps</h1>
+    <h1>Developer dashboard</h1>
     ${banner}
     <p><a class="btn" href="#/upload">+ Publish a new app</a></p>
     <div id="list"><div class="muted">Loading…</div></div>`);

@@ -29,11 +29,18 @@ export function renderAccount(el, _p, user) {
       </section>
 
       <section class="card pad">
+        <h2>My apps</h2>
+        <p class="muted small">Apps you downloaded or saved for later.</p>
+        <p class="actions"><a class="btn ghost" href="#/downloads">Downloaded</a>
+        <a class="btn ghost" href="#/downloads?tab=saved">Saved</a></p>
+      </section>
+
+      <section class="card pad">
         <h2>Developer</h2>
         ${dev
           ? html`<p><b>${dev.name}</b> <span class="muted">(${dev.devType === "company" ? "Company" : "Individual"})</span></p>
                  <p class="actions"><a class="btn" href="#/upload">Publish an app</a>
-                 <a class="btn ghost" href="#/dashboard">My apps</a></p>`
+                 <a class="btn ghost" href="#/dashboard">Developer dashboard</a></p>`
           : html`<p class="muted">Want to publish your own Android apps on AR DroidHub? It is free.</p>
                  <p><a class="btn" href="#/become-developer">Become a developer</a></p>`}
       </section>

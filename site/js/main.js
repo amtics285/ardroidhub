@@ -6,6 +6,7 @@ import { renderHome } from "./pages/home.js";
 import { renderApp } from "./pages/app.js";
 import { renderLogin, renderRegister, renderReset } from "./pages/auth.js";
 import { renderDashboard } from "./pages/dashboard.js";
+import { renderMyApps } from "./pages/mine.js";
 import { renderUpload } from "./pages/upload.js";
 import { renderTerms } from "./pages/terms.js";
 import { renderVerify } from "./pages/verify.js";
@@ -66,9 +67,10 @@ function drawerContent(user) {
     </div>
     ${item("#/", "home", "Home")}
     ${item("#/account", "user", "Account")}
+    ${item("#/downloads", "grid", "My apps")}
     ${item("#/profile", "edit", "Edit profile")}
     ${me.dev
-      ? html`${item("#/upload", "upload", "Publish an app", "strong")}${item("#/dashboard", "grid", "My apps")}`
+      ? html`${item("#/upload", "upload", "Publish an app", "strong")}${item("#/dashboard", "code", "Developer dashboard")}`
       : item("#/become-developer", "code", "Become a developer", "strong")}
     ${links}
     <div class="drawer-sep"></div>
@@ -121,6 +123,7 @@ const routes = [
   [/^#\/profile$/, renderProfile],
   [/^#\/become-developer$/, renderBecomeDeveloper],
   [/^#\/dashboard$/, renderDashboard],
+  [/^#\/downloads$/, renderMyApps],
   [/^#\/upload(?:\/([A-Za-z0-9]+))?$/, renderUpload],
   [/^#\/verify$/, renderVerify],
   [/^#\/terms$/, renderTerms],

@@ -432,7 +432,7 @@ export async function renderUpload(el, [existingId], user) {
         <h1>Submitted! 🎉</h1>
         <p>We started reviewing <b>${S.data.name}</b>. This usually takes a few minutes.</p>
         <p class="muted">You can follow every step live on your dashboard, and we will email you the result.</p>
-        <p><a class="btn" href="#/dashboard">Go to my apps</a></p>
+        <p><a class="btn" href="#/dashboard">Go to my dashboard</a></p>
       </div>`);
   }
 

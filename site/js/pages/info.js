@@ -44,7 +44,7 @@ export function renderSupport(el) {
     <p>Check your spam folder and wait a minute or two. You can ask for a new code every 60 seconds on the verify page.</p>
 
     <h2>My app was rejected. What now?</h2>
-    <p>Open <b>My apps</b> in the menu. The reason is shown on the app, and you also got it by email. Fix the problem, then press <b>Fix &amp; resubmit</b>.</p>
+    <p>Open <b>Developer dashboard</b> in the menu. The reason is shown on the app, and you also got it by email. Fix the problem, then press <b>Fix &amp; resubmit</b>.</p>
 
     <h2>Report an app or ask for removal</h2>
     <p>If you think an app is harmful, copied, or uses your work, tell us the app name and the problem. We will look at it and remove it if needed.</p>
@@ -71,6 +71,7 @@ export function renderPrivacy(el) {
       <li><b>Name and email</b> to identify your account and send you the verification code.</li>
       <li><b>Password</b>. It is handled by Google Firebase Authentication. We never see it or store it ourselves.</li>
       <li><b>Phone number</b> only if you choose to add it. It is private and never shown to others.</li>
+      <li><b>Downloaded and saved apps</b> while you are logged in, so you can see them in <b>My apps</b>. Only you can see this list, and you can remove items any time.</li>
     </ul>
 
     <h2>If you become a developer</h2>

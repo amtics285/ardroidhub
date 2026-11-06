@@ -1,5 +1,5 @@
-import { db, doc, getDoc } from "../fb.js";
-import { html, render, fmtSize, fmtDate, safeUrl, badge, permName, STATUS } from "../ui.js";
+import { db, doc, getDoc, setDoc, deleteDoc, serverTimestamp, increment } from "../fb.js";
+import { html, render, $, toast, fmtSize, fmtDate, safeUrl, badge, permName, STATUS } from "../ui.js";
 
 export async function renderApp(el, [id], user) {
   render(el, html`<div class="muted">Loading…</div>`);
@@ -37,8 +37,12 @@ export async function renderApp(el, [id], user) {
     </section>
 
     ${published
-      ? html`<p><a class="btn big" href="${a.apkUrl}" rel="noopener">Install (download APK)</a></p>
-             <p class="muted small">Android may ask you to allow installs from this browser. This is normal for apps outside Google Play.</p>`
+      ? html`<p class="head-actions">
+               <a class="btn big" id="installBtn" href="${a.apkUrl}" rel="noopener">Install (download APK)</a>
+               <button class="btn big ghost" id="saveBtn" type="button">Save for later</button>
+             </p>
+             <p class="muted small">Android may ask you to allow installs from this browser. This is normal for apps outside Google Play.
+               ${user ? "" : html`<a href="#/login">Log in</a> to keep a history of the apps you download.`}</p>`
       : ""}
 
     ${(a.screenshots || []).length
@@ -67,4 +71,43 @@ export async function renderApp(el, [id], user) {
       ${a.sha256 ? html`<dt>SHA-256</dt><dd class="mono">${a.sha256}</dd>` : ""}
     </dl>
   `);
+
+  if (published) {
+    const brief = { name: a.name || "", iconUrl: a.iconUrl || "", developerName: a.developerName || "", category: a.category || "" };
+    // Download history (only for logged-in people). The download itself never waits for this.
+    $("#installBtn").addEventListener("click", () => {
+      if (!user) return;
+      setDoc(doc(db, "users", user.uid, "downloads", id), { ...brief, lastAt: serverTimestamp(), count: increment(1) }, { merge: true })
+        .catch((e) => console.error(e));
+    });
+    // Save for later
+    const saveBtn = $("#saveBtn");
+    let saved = false;
+    const paint = () => { saveBtn.textContent = saved ? "Saved \u2713" : "Save for later"; };
+    if (user) {
+      try {
+        saved = (await getDoc(doc(db, "users", user.uid, "saved", id))).exists();
+      } catch { /* shown as not saved */ }
+    }
+    paint();
+    saveBtn.onclick = async () => {
+      if (!user) {
+        toast("Log in to save apps.");
+        location.hash = "#/login";
+        return;
+      }
+      saveBtn.disabled = true;
+      try {
+        const ref = doc(db, "users", user.uid, "saved", id);
+        if (saved) await deleteDoc(ref);
+        else await setDoc(ref, { ...brief, savedAt: serverTimestamp() });
+        saved = !saved;
+        paint();
+      } catch (e) {
+        console.error(e);
+        toast("Could not update your saved apps.", "err");
+      }
+      saveBtn.disabled = false;
+    };
+  }
 }
