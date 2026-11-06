@@ -54,11 +54,14 @@ jobs:
 
       - name: Install scanners (ClamAV, apksigner)
         if: steps.begin.outputs.proceed == 'true'
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clamav clamav-freshclam apksigner
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install -y --no-install-recommends clamav clamav-freshclam apksigner
           sudo systemctl stop clamav-freshclam || true
-          sudo freshclam || echo "freshclam failed, ClamAV will report a scanner error"
+          for i in 1 2 3; do
+            sudo timeout 150 freshclam && break || echo "freshclam attempt $i failed"
+          done
 
       # 2. Download uploaded files. Only the GitHub token is available here.
       - name: Download files

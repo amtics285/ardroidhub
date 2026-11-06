@@ -21,12 +21,14 @@ def main():
 
     data = snap.to_dict()
     print(f"App {app_id}: status={data.get('status')}")
-    if data.get("status") != "pending":
+    # "checking" is allowed too: a previous run may have been cancelled or timed out half way.
+    # Runs for one app never overlap (workflow concurrency group), so this is safe.
+    if data.get("status") not in ("pending", "checking"):
         print("Not pending, skipping.")
         set_output("proceed", "false")
         return
 
-    retry = bool(data.get("botError"))  # a retry after an error: do not mail again
+    retry = bool(data.get("botError")) or data.get("status") == "checking"  # a retry after an error: do not mail again
     ref.update({"status": "checking", "stage": "scan", "updatedAt": firestore.SERVER_TIMESTAMP})
     if not retry:
         notify(db, app_id, "received")
