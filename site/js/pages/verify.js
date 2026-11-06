@@ -1,6 +1,6 @@
 import { auth } from "../fb.js";
 import { html, render, $, toast } from "../ui.js";
-import { sendCode, verifyCode, lastSentAt } from "../mail.js";
+import { sendCode, verifyCode, lastSentAt, pendingSend } from "../mail.js";
 
 export function renderVerify(el, _p, user) {
   if (!user) {
@@ -55,6 +55,16 @@ export function renderVerify(el, _p, user) {
   }
   timer = setInterval(tick, 1000);
   tick();
+
+  // Right after sign-up the code is still being sent in the background.
+  const first = pendingSend();
+  if (first) {
+    info.textContent = "Sending your code…";
+    first.then(
+      () => { if (alive) info.textContent = "Code sent to your email. Please check your inbox."; },
+      (ex) => { if (alive) { info.textContent = ""; showErr(ex.message + " You can press \u201cSend me a code\u201d to try again."); tick(); } }
+    );
+  }
 
   resend.onclick = async () => {
     showErr("");

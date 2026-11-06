@@ -89,7 +89,12 @@ export function renderReset(el) {
   };
 }
 
+// True from the moment the account is created until we are on the verify page. Without it the
+// "already logged in" check below would bounce the new person to the account page for a moment.
+let registering = false;
+
 export function renderRegister(el, _p, user) {
+  if (registering) return;
   if (user) {
     location.hash = "#/account";
     return;
@@ -134,22 +139,19 @@ export function renderRegister(el, _p, user) {
     if (!f.terms.checked) return fail("Please accept the Privacy policy.");
 
     busy(btn, true, "Creating account…");
+    registering = true;
     try {
       const cred = await createUserWithEmailAndPassword(auth, f.email.value.trim(), f.password.value);
       await updateProfile(cred.user, { displayName: name });
       await setDoc(doc(db, "developersPrivate", cred.user.uid), {
         phone: "", email: cred.user.email, createdAt: serverTimestamp(),
       });
-      // We email a 6-digit code. If that fails the verify page has a "Send me a code" button.
-      try {
-        await sendCode();
-        toast("Account created. We sent a code to your email.", "ok");
-      } catch (ex) {
-        console.error(ex);
-        toast("Account created. Press 'Send me a code' to get your email code.");
-      }
+      // Go straight to the code page; the email is sent in the background (the page shows its progress).
+      sendCode().catch((ex) => console.error(ex));
+      registering = false;
       location.hash = "#/verify";
     } catch (ex) {
+      registering = false;
       fail(friendly(ex));
       busy(btn, false, "Create account");
     }
