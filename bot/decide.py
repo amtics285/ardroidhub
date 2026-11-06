@@ -50,19 +50,19 @@ def text_checks(doc, meta, report, errors, flags):
 
     review = words_in(blob, policy.REVIEW_WORDS)
     if review:
-        add(report, errors, flags, "warn", "Piracy / cheating words", ", ".join(review))
+        add(report, errors, flags, "fail", "Piracy / cheating words", "not allowed: " + ", ".join(review))
 
     brands = [b for b in policy.BRAND_NAMES if b in name.replace(" ", "")]
     if brands:
-        add(report, errors, flags, "warn", "Brand name in app name", ", ".join(brands))
+        add(report, errors, flags, "fail", "Brand name in app name", "uses a well-known brand (" + ", ".join(brands) + "). Please choose your own name")
 
     pkg = meta.get("package", "")
     if pkg.startswith(policy.PROTECTED_PACKAGE_PREFIXES):
-        add(report, errors, flags, "warn", "Package name", f"{pkg} looks like a well-known company's package")
+        add(report, errors, flags, "fail", "Package name", f"{pkg} belongs to a well-known company. Please use your own package name")
 
 
 def duplicate_check(db, app_id, pkg, report, errors, flags):
-    live = ("approved", "review", "checking", "pending")
+    live = ("approved", "checking", "pending")
     for d in db.collection("apps").where("package", "==", pkg).stream():
         if d.id != app_id and (d.to_dict() or {}).get("status") in live:
             add(report, errors, flags, "fail", "Duplicate app", f"another app already uses the package name {pkg}")
@@ -115,7 +115,7 @@ def virustotal(path, sha, report, errors, flags):
         if stats is None:
             stats = vt_wait(vt_upload(path, key), key)
     except Exception as e:
-        add(report, errors, flags, "warn", "VirusTotal", f"scan unavailable ({type(e).__name__}), manual review needed")
+        add(report, errors, flags, "warn", "VirusTotal", f"scan unavailable ({type(e).__name__}), the virus scan alone was used")
         return None
 
     mal = int(stats.get("malicious", 0))
@@ -123,8 +123,10 @@ def virustotal(path, sha, report, errors, flags):
     summary = f"{mal} malicious, {sus} suspicious"
     if mal >= policy.VT_REJECT_MALICIOUS:
         add(report, errors, flags, "fail", "VirusTotal", f"flagged by {mal} engines")
-    elif mal >= policy.VT_REVIEW_MALICIOUS or sus >= policy.VT_REVIEW_SUSPICIOUS:
-        add(report, errors, flags, "warn", "VirusTotal", summary)
+    elif sus >= policy.VT_REJECT_SUSPICIOUS:
+        add(report, errors, flags, "fail", "VirusTotal", f"flagged as suspicious by {sus} engines")
+    elif mal >= 1:
+        add(report, errors, flags, "warn", "VirusTotal", summary + " (one engine only, treated as a false alarm)")
     else:
         add(report, errors, flags, "pass", "VirusTotal", "clean (" + summary + ")")
     return {"malicious": mal, "suspicious": sus}
@@ -188,7 +190,6 @@ def publish(s, app_id, meta):
 
 def main():
     app_id = get_app_id()
-    force = os.environ.get("ACTION") == "approve"
     db = init_firestore()
     ref = db.collection("apps").document(app_id)
     doc = ref.get().to_dict() or {}
@@ -200,6 +201,7 @@ def main():
         ref.update({"status": "pending", "botError": "analysis did not run", "updatedAt": firestore.SERVER_TIMESTAMP})
         raise
 
+    ref.update({"stage": "final", "updatedAt": firestore.SERVER_TIMESTAMP})  # shown to the developer
     report = list(analysis["report"])
     errors = list(analysis["errors"])
     flags = list(analysis["flags"])
@@ -219,32 +221,16 @@ def main():
             reason = "; ".join(errors)[:500]
             print("REJECT:", reason)
             delete_draft(s, app_id)
-            ref.update({"status": "rejected", "reason": reason, "report": report, "updatedAt": now})
+            ref.update({"status": "rejected", "stage": firestore.DELETE_FIELD, "reason": reason, "report": report, "updatedAt": now})
             notify(db, app_id, "rejected", reason)
-            return
-
-        if flags and not force:
-            print("MANUAL REVIEW:", flags)
-            ref.update(
-                {
-                    "status": "review",
-                    "reason": firestore.DELETE_FIELD,
-                    "reviewNotes": flags,
-                    "report": report,
-                    "package": meta.get("package"),
-                    "versionName": meta.get("versionName"),
-                    "updatedAt": now,
-                }
-            )
-            notify(db, app_id, "review")
             return
 
         urls = publish(s, app_id, meta)
         delete_draft(s, app_id)
         update = {
             "status": "approved",
+            "stage": firestore.DELETE_FIELD,
             "reason": firestore.DELETE_FIELD,
-            "reviewNotes": firestore.DELETE_FIELD,
             "botError": firestore.DELETE_FIELD,
             "report": report,
             "package": meta["package"],

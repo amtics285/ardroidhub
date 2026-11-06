@@ -4,17 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AR DroidHub</title>
-  <meta name="description" content="AR DroidHub - a community store for Android apps, checked by a bot.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2301875f'/%3E%3Cpath d='M30 62a20 20 0 0 1 40 0z' fill='white'/%3E%3Ccircle cx='41' cy='55' r='3' fill='%2301875f'/%3E%3Ccircle cx='59' cy='55' r='3' fill='%2301875f'/%3E%3C/svg%3E">
+  <meta name="description" content="AR DroidHub - a free store to download Android apps.">
+  <link rel="icon" type="image/png" href="img/logo-64.png">
+  <link rel="apple-touch-icon" href="img/logo-192.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <!-- Put your logo at site/img/logo.png (square, PNG). Until then the green "AR" badge is shown. -->
+    <button class="menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="drawer">
+      <span></span><span></span><span></span>
+    </button>
     <a class="brand" href="#/" aria-label="AR DroidHub home">
-      <img class="logo-img" src="img/logo.png" alt="" width="38" height="38"
-           onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo',textContent:'AR'}))">
-      <span>DroidHub</span>
+      <img class="logo-img" src="img/logo.png" alt="" width="38" height="38">
+      <span>AR DroidHub</span>
     </a>
     <form class="search" id="searchForm" role="search">
       <input id="searchInput" type="search" placeholder="Search apps" autocomplete="off" aria-label="Search apps">
@@ -22,12 +24,20 @@
     <nav id="nav" class="nav"></nav>
   </header>
 
+  <div id="scrim" class="scrim" hidden></div>
+  <aside id="drawer" class="drawer" aria-hidden="true" aria-label="Menu"></aside>
+
   <main id="view" class="container"></main>
 
   <footer class="footer">
-    <span>AR DroidHub</span>
-    <a href="#/terms">Developer policy</a>
-    <span class="muted">Apps are checked by a bot, but install at your own risk.</span>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="#/about">About us</a>
+      <a href="#/privacy">Privacy policy</a>
+      <a href="#/support">Support</a>
+      <a href="#/company">Our company</a>
+      <a href="#/terms">Developer policy</a>
+    </nav>
+    <div class="muted">&copy; AR DroidHub. All rights reserved.</div>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

@@ -3,10 +3,11 @@ import {
 } from "../fb.js";
 import { html, render, $, $$, esc, fmtSize, toast, raw } from "../ui.js";
 import { CATEGORIES, LIMITS, WORKER_URL } from "../config.js";
+import { me } from "../state.js";
 
 const STEPS = ["App details", "Graphics", "APK file", "Review & submit"];
 
-/* ---------- file checks (same rules as the bot, so people find out early) ---------- */
+/* ---------- file checks (same rules as the server review, so people find out early) ---------- */
 
 function loadImage(file) {
   return new Promise((resolve, reject) => {
@@ -99,6 +100,11 @@ export async function renderUpload(el, [existingId], user) {
   if (!user) {
     toast("Please log in first.");
     location.hash = "#/login";
+    return;
+  }
+  if (!me.dev) {
+    toast("Become a developer first to publish apps.");
+    location.hash = "#/become-developer";
     return;
   }
   if (!user.emailVerified) {
@@ -299,7 +305,7 @@ export async function renderUpload(el, [existingId], user) {
   function step3() {
     shell(html`
       <h1>APK file</h1>
-      <p class="muted small">Upload the signed release APK (up to ${LIMITS.apkMB} MB). AAB files are not supported. The bot checks that it is valid, signed and safe.</p>
+      <p class="muted small">Upload the signed release APK (up to ${LIMITS.apkMB} MB). AAB files are not supported. We check that it is valid, signed and safe.</p>
       ${S.apk
         ? html`<div class="filebox"><b>${S.apk.name}</b> <span class="muted">${fmtSize(S.apk.size)}</span> <button type="button" class="btn small ghost" id="rmApk">Remove</button></div>`
         : html`<input type="file" id="apkIn" accept=".apk,application/vnd.android.package-archive">`}
@@ -424,8 +430,8 @@ export async function renderUpload(el, [existingId], user) {
     render(el, html`
       <div class="card pad empty">
         <h1>Submitted! 🎉</h1>
-        <p>Our bot is checking <b>${S.data.name}</b> now. This usually takes a few minutes.</p>
-        <p class="muted">You can follow the progress, and see the bot report, on your dashboard.</p>
+        <p>We started reviewing <b>${S.data.name}</b>. This usually takes a few minutes.</p>
+        <p class="muted">You can follow every step live on your dashboard, and we will email you the result.</p>
         <p><a class="btn" href="#/dashboard">Go to my apps</a></p>
       </div>`);
   }

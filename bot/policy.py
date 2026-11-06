@@ -2,7 +2,7 @@
 
 MAX_APK_MB = 95
 
-# Permissions that send an app to manual review (not an automatic reject).
+# Sensitive permissions: the app is still published, but they are listed on its page.
 RISKY_PERMISSIONS = {
     "android.permission.READ_SMS",
     "android.permission.SEND_SMS",
@@ -23,7 +23,7 @@ RISKY_PERMISSIONS = {
     "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
 }
 
-# Package-name prefixes of well known companies: anyone else using them needs a human look.
+# Package-name prefixes of well known companies: other developers using them are rejected.
 PROTECTED_PACKAGE_PREFIXES = (
     "com.google.",
     "com.android.",
@@ -43,7 +43,7 @@ PROTECTED_PACKAGE_PREFIXES = (
     "com.zhiliaoapp.",
 )
 
-# Brand names in an app name send it to manual review (possible impersonation).
+# Brand names in an app name are rejected (possible impersonation).
 BRAND_NAMES = (
     "whatsapp", "instagram", "facebook", "telegram", "youtube", "google", "netflix",
     "paytm", "phonepe", "gpay", "amazon", "flipkart", "tiktok", "snapchat", "spotify",
@@ -54,15 +54,18 @@ BRAND_NAMES = (
 BLOCKED_WORDS = (
     "porn", "xxx", "nude", "nudes", "sex video", "escort", "hentai", "casino hack",
     "carding", "ddos", "keylogger", "spyware", "stalkerware", "ransomware",
+    # abusive language (English / Hindi written in English letters)
+    "fuck", "fucking", "bitch", "bastard", "asshole", "motherfucker",
+    "madarchod", "behenchod", "bhenchod", "chutiya", "chutiye", "gandu", "harami",
+    "bhosdi", "bhosdike", "gaand", "kutta", "kamina",
 )
 
-# Piracy / cheating words: manual review.
+# Piracy / cheating words in the app name or descriptions: rejected.
 REVIEW_WORDS = (
     "mod apk", "cracked", "crack", "premium unlocked", "hacked", "hack tool", "free robux",
     "unlimited coins", "unlimited gems", "pirated", "leaked", "watch movies free",
 )
 
 # VirusTotal thresholds (number of engines).
-VT_REJECT_MALICIOUS = 3
-VT_REVIEW_MALICIOUS = 1
-VT_REVIEW_SUSPICIOUS = 2
+VT_REJECT_MALICIOUS = 2   # this many engines say malicious -> rejected
+VT_REJECT_SUSPICIOUS = 4  # this many say suspicious -> rejected

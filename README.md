@@ -11,16 +11,15 @@ A small community Android app store.
 
 ## Flow
 
-1. Developer signs up (Firebase Auth, email verification) and fills the 4-step upload wizard.
+1. Anyone can create an account (Firebase Auth + email code). Choosing **Become a developer** in the menu unlocks the 4-step upload wizard.
 2. Files go site -> Worker -> draft GitHub release (private until reviewed).
 3. Worker marks the app `pending` and starts `review.yml`.
-4. The bot checks everything and sets the app to `approved`, `rejected` (with reasons) or `review` (manual).
+4. The bot checks everything and sets the app to `approved` or `rejected` (with reasons). There is no manual review. The developer sees live phases (queue, checking, final checks) and gets an email for received / published / rejected.
 5. Approved files are copied to a public release; the site reads app data from Firestore.
 
-## Manual review
+## Policy
 
-Apps in `review` stay in a draft release. Open **Actions -> Review app -> Run workflow** and pass the
-`app_id` (the Firestore document id) with `approve` or `reject` (+ a reason).
+All rules live in `bot/policy.py` (blocked words incl. abusive language, brand names, protected package names, VirusTotal thresholds). Edit and push to change them.
 
 ## Secrets (repo -> Settings -> Secrets and variables -> Actions)
 

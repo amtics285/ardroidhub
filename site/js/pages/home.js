@@ -48,8 +48,8 @@ export async function renderHome(el) {
     body = html`
       <div class="empty">
         <h2>No apps yet</h2>
-        <p>Be the first to publish an app on AR DroidHub.</p>
-        <p><a class="btn" href="#/upload">Publish an app</a></p>
+        <p>Apps will show up here soon. Check back in a little while.</p>
+        <p class="small">Are you a developer? <a href="#/become-developer">Become a developer</a> and publish yours.</p>
       </div>`;
   } else if (!filtered.length) {
     body = html`<div class="empty"><h2>Nothing found</h2><p>Try a different search or category.</p></div>`;
@@ -63,15 +63,11 @@ export async function renderHome(el) {
     ${!q && !cat ? html`
       <section class="hero">
         <h1>Find Android apps you can trust</h1>
-        <p>Every app is scanned by our bot for viruses, permissions and policy problems before it goes live.</p>
-        <div class="hero-actions">
-          <a class="btn big" href="#/upload">Publish your app</a>
-          <a class="btn big ghost" href="#/terms">Developer policy</a>
-        </div>
+        <p>Download free Android apps straight to your phone. No account needed.</p>
         <div class="pills">
-          <span class="pill">Virus scanned</span>
-          <span class="pill">Free for developers</span>
+          <span class="pill">Free downloads</span>
           <span class="pill">Direct APK download</span>
+          <span class="pill">See permissions before you install</span>
         </div>
       </section>` : ""}
     ${chips}

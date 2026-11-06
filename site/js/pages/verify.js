@@ -1,6 +1,7 @@
 import { auth } from "../fb.js";
 import { html, render, $, toast } from "../ui.js";
 import { sendCode, verifyCode, lastSentAt } from "../mail.js";
+import { takeNext } from "../state.js";
 
 export function renderVerify(el, _p, user) {
   if (!user) {
@@ -8,7 +9,7 @@ export function renderVerify(el, _p, user) {
     return;
   }
   if (user.emailVerified) {
-    location.hash = "#/dashboard";
+    location.hash = takeNext("#/account");
     return;
   }
 
@@ -84,7 +85,7 @@ export function renderVerify(el, _p, user) {
       btn.textContent = "Verify";
       return;
     }
-    // The bot now marks the account as verified. That takes up to a minute, so wait for it.
+    // The server now marks the account as verified. That takes up to a minute, so wait for it.
     info.textContent = "Code accepted. Finishing up… (this can take up to a minute)";
     btn.textContent = "Please wait…";
     const started = Date.now();
@@ -95,8 +96,8 @@ export function renderVerify(el, _p, user) {
       } catch { /* try again on the next tick */ }
       if (auth.currentUser && auth.currentUser.emailVerified) {
         clearInterval(polling);
-        toast("Email verified. You can publish apps now.", "ok");
-        if (alive) location.hash = "#/dashboard";
+        toast("Email verified. Welcome to AR DroidHub!", "ok");
+        if (alive) location.hash = takeNext("#/account");
       } else if (Date.now() - started > 150000) {
         clearInterval(polling);
         if (alive) {

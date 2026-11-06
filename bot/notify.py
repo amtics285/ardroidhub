@@ -1,4 +1,4 @@
-"""Status emails for developers: received, manual review, published, rejected.
+"""Status emails for developers: received, published, rejected.
 
 Mails go ONLY to the email address of the Firebase account that owns the app (never to the
 free-text "contact email" field, which anyone could point at a stranger). A mail problem must
@@ -33,22 +33,14 @@ def compose(kind: str, app_name: str, app_id: str, reason: str = "", dev_name: s
         subject = f"We received {name}"
         title, color = "Your app is in the queue", "#1a56db"
         lines = [
-            f"We received {name}. Our bot is checking the files now.",
-            "This usually takes a few minutes. We will email you again as soon as there is a result.",
-        ]
-        link, label = dashboard, "Track status"
-    elif kind == "review":
-        subject = f"{name} needs a manual review"
-        title, color = "Manual review needed", "#b06000"
-        lines = [
-            f"The bot checked {name} and found something that needs a human look.",
-            "Nothing is wrong yet. A person from the team will approve or reject it soon, and you will get another email.",
+            f"We received {name} and started the review.",
+            "This usually takes a few minutes. You can follow every step on your dashboard, and we will email you again as soon as there is a result.",
         ]
         link, label = dashboard, "Track status"
     elif kind == "approved":
         subject = f"{name} is live on AR DroidHub"
         title, color = "Your app is published", BRAND
-        lines = [f"Good news! {name} passed all checks and is now live on AR DroidHub."]
+        lines = [f"Good news! {name} passed all checks and is now live on AR DroidHub. Anyone can install it now."]
         link, label = app_link, "View your app"
     elif kind == "rejected":
         subject = f"{name} was rejected"
@@ -56,7 +48,7 @@ def compose(kind: str, app_name: str, app_id: str, reason: str = "", dev_name: s
         lines = [f"{name} could not be published."]
         if reason:
             lines.append(f"Reason: {reason}")
-        lines.append("You can fix the problem and submit it again from your dashboard.")
+        lines.append("You can fix the problem and submit the app again from your dashboard.")
         link, label = dashboard, "Open dashboard"
     else:
         raise ValueError("unknown kind")
@@ -66,7 +58,8 @@ def compose(kind: str, app_name: str, app_id: str, reason: str = "", dev_name: s
     page = (
         '<div style="background:#f6f8f9;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#1f2328">'
         '<div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #e1e5e9;border-radius:14px;overflow:hidden">'
-        f'<div style="background:{color};color:#fff;padding:18px 24px;font-size:18px;font-weight:700">{htmllib.escape(title)}</div>'
+        f'<div style="background:{color};color:#fff;padding:18px 24px;font-size:18px;font-weight:700">'
+        f'<img src="{base}img/logo-64.png" width="28" height="28" alt="" style="vertical-align:middle;border-radius:50%;margin-right:10px">{htmllib.escape(title)}</div>'
         f'<div style="padding:24px"><p style="margin:0 0 14px">{htmllib.escape(hello)}</p>{body}'
         f'<p style="margin:22px 0"><a href="{htmllib.escape(link, quote=True)}" '
         f'style="background:{BRAND};color:#fff;text-decoration:none;padding:12px 24px;border-radius:999px;font-weight:700;display:inline-block">'

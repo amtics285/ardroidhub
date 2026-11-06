@@ -8,15 +8,11 @@ on:
         required: true
         type: string
       action:
-        description: review (normal) | approve / reject (for apps held in manual review)
+        description: Always "review" (everything is automatic)
         required: true
         default: review
         type: choice
-        options: [review, approve, reject]
-      reason:
-        description: Reject reason (shown to the developer)
-        required: false
-        type: string
+        options: [review]
 
 concurrency:
   group: review-${{ inputs.app_id }}
@@ -31,8 +27,6 @@ jobs:
     timeout-minutes: 40
     env:
       APP_ID: ${{ inputs.app_id }}
-      ACTION: ${{ inputs.action }}
-      REASON: ${{ inputs.reason }}
     steps:
       - uses: actions/checkout@v4
         with:

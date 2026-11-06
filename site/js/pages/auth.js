@@ -24,7 +24,7 @@ function busy(btn, on, text) {
 
 export function renderLogin(el, _p, user) {
   if (user) {
-    location.hash = "#/dashboard";
+    location.hash = "#/";
     return;
   }
   render(el, html`
@@ -37,7 +37,7 @@ export function renderLogin(el, _p, user) {
         <button class="btn block" type="submit">Log in</button>
       </form>
       <p class="small"><a href="#/reset">Forgot password?</a></p>
-      <p class="small">New developer? <a href="#/register">Create an account</a></p>
+      <p class="small">New here? <a href="#/register">Create an account</a></p>
     </div>`);
 
   $("#f").onsubmit = async (e) => {
@@ -48,7 +48,7 @@ export function renderLogin(el, _p, user) {
     busy(btn, true, "Logging in…");
     try {
       await signInWithEmailAndPassword(auth, e.target.email.value.trim(), e.target.password.value);
-      location.hash = "#/dashboard";
+      location.hash = "#/";
     } catch (ex) {
       err.textContent = friendly(ex);
       err.hidden = false;
@@ -90,33 +90,28 @@ export function renderReset(el) {
 
 export function renderRegister(el, _p, user) {
   if (user) {
-    location.hash = "#/dashboard";
+    location.hash = "#/account";
     return;
   }
   render(el, html`
-    <div class="auth card pad wide">
-      <h1>Developer sign up</h1>
-      <p class="muted">Create a developer account to publish apps on AR DroidHub.</p>
+    <div class="auth card pad">
+      <h1>Create account</h1>
+      <p class="muted">One free account for everything on AR DroidHub.</p>
       <form id="f" novalidate>
-        <label>Developer name <small>(shown on your apps)</small>
-          <input name="name" type="text" minlength="2" maxlength="60" autocomplete="organization" required></label>
-        <label>Developer type
-          <select name="devType"><option value="individual">Individual</option><option value="company">Company</option></select></label>
+        <label>Your name
+          <input name="name" type="text" minlength="2" maxlength="60" autocomplete="name" required></label>
         <label>Email<input name="email" type="email" autocomplete="email" required></label>
-        <label>Phone number <small>(optional, kept private)</small>
-          <input name="phone" type="tel" maxlength="20" autocomplete="tel"></label>
-        <label>Website <small>(optional)</small>
-          <input name="website" type="url" maxlength="200" placeholder="https://"></label>
         <label>Password <small>(min 8 characters)</small>
           <input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
         <label>Confirm password
           <input name="password2" type="password" minlength="8" autocomplete="new-password" required></label>
         <label class="check"><input name="terms" type="checkbox" required>
-          <span>I agree to the <a href="#/terms" target="_blank">Developer policy</a>: no malware, no pirated or copied apps, and I own the rights to what I upload.</span></label>
+          <span>I agree to the <a href="#/privacy" target="_blank">Privacy policy</a>.</span></label>
         <p class="error" id="err" hidden></p>
         <button class="btn block" type="submit">Create account</button>
       </form>
       <p class="small">Already registered? <a href="#/login">Log in</a></p>
+      <p class="small muted">Want to publish apps? Create your account first, then choose <b>Become a developer</b> in the menu.</p>
     </div>`);
 
   $("#f").onsubmit = async (e) => {
@@ -131,24 +126,19 @@ export function renderRegister(el, _p, user) {
     err.hidden = true;
 
     const name = f.name.value.trim();
-    const website = f.website.value.trim();
-    if (name.length < 2) return fail("Please enter your developer name.");
+    if (name.length < 2) return fail("Please enter your name.");
     if (f.password.value.length < 8) return fail("Password must be at least 8 characters.");
     if (f.password.value !== f.password2.value) return fail("The two passwords do not match.");
-    if (!f.terms.checked) return fail("Please accept the Developer policy.");
-    if (website && !/^https?:\/\//i.test(website)) return fail("Website must start with http:// or https://");
+    if (!f.terms.checked) return fail("Please accept the Privacy policy.");
 
     busy(btn, true, "Creating account…");
     try {
       const cred = await createUserWithEmailAndPassword(auth, f.email.value.trim(), f.password.value);
       await updateProfile(cred.user, { displayName: name });
-      await setDoc(doc(db, "developers", cred.user.uid), {
-        name, devType: f.devType.value, website, createdAt: serverTimestamp(),
-      });
       await setDoc(doc(db, "developersPrivate", cred.user.uid), {
-        phone: f.phone.value.trim(), email: cred.user.email, createdAt: serverTimestamp(),
+        phone: "", email: cred.user.email, createdAt: serverTimestamp(),
       });
-      // Our bot emails a 6-digit code. If that fails the verify page has a "Send me a code" button.
+      // We email a 6-digit code. If that fails the verify page has a "Send me a code" button.
       try {
         await sendCode();
         toast("Account created. We sent a code to your email.", "ok");

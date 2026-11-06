@@ -200,18 +200,18 @@ def check_clamav(path):
             ["clamscan", "--no-summary", path], capture_output=True, text=True, timeout=900
         )
     except FileNotFoundError:
-        add("warn", "ClamAV scan", "ClamAV not available")
+        add("fail", "Virus scan", "the scanner was not available, please submit again in a few minutes")
         return
     except subprocess.TimeoutExpired:
-        add("warn", "ClamAV scan", "scan timed out")
+        add("fail", "Virus scan", "the scan timed out, please submit again in a few minutes")
         return
     if r.returncode == 0:
-        add("pass", "ClamAV scan", "no threats found")
+        add("pass", "Virus scan", "no threats found")
     elif r.returncode == 1:
         found = [line.split(":", 1)[-1].strip() for line in r.stdout.splitlines() if line.endswith("FOUND")]
-        add("fail", "ClamAV scan", "threat detected: " + (", ".join(found) or "unknown"))
+        add("fail", "Virus scan", "threat detected: " + (", ".join(found) or "unknown"))
     else:
-        add("warn", "ClamAV scan", "scanner error, manual review needed")
+        add("fail", "Virus scan", "the scanner had an error, please submit again in a few minutes")
 
 
 def main():

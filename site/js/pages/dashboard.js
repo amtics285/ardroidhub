@@ -1,5 +1,6 @@
 import { auth, db, collection, query, where, onSnapshot, doc, deleteDoc } from "../fb.js";
-import { html, render, $, $$, badge, STATUS, toast } from "../ui.js";
+import { html, render, $, $$, badge, STATUS, toast, phases } from "../ui.js";
+import { me } from "../state.js";
 
 function reportList(a) {
   const items = a.report || [];
@@ -7,7 +8,7 @@ function reportList(a) {
   const icon = { pass: "✓", warn: "!", fail: "✗" };
   return html`
     <details class="report">
-      <summary>Bot report</summary>
+      <summary>Review report</summary>
       <ul>${items.map((r) => html`<li class="${r.status}"><b>${icon[r.status] || "•"} ${r.check}</b> <span>${r.detail}</span></li>`)}</ul>
     </details>`;
 }
@@ -23,7 +24,7 @@ function row(a) {
           <div class="app-name">${a.name || "(no name)"} ${badge(a.status)}</div>
           <div class="muted small">${st.help || ""}</div>
           ${a.status === "rejected" && a.reason ? html`<div class="error small">${a.reason}</div>` : ""}
-          ${a.botError ? html`<div class="muted small">Bot will retry: ${a.botError}</div>` : ""}
+          ${a.botError ? html`<div class="muted small">A temporary delay happened. Your app is still in the queue.</div>` : ""}
         </div>
         <div class="actions">
           ${a.status === "approved" ? html`<a class="btn small ghost" href="#/app/${a.id}">View</a>` : ""}
@@ -31,6 +32,7 @@ function row(a) {
           ${editable ? html`<button class="btn small ghost danger" data-del="${a.id}" type="button">Delete</button>` : ""}
         </div>
       </div>
+      ${["pending", "checking", "approved", "rejected"].includes(a.status) ? phases(a) : ""}
       ${reportList(a)}
     </div>`;
 }
@@ -38,6 +40,10 @@ function row(a) {
 export function renderDashboard(el, _p, user) {
   if (!user) {
     location.hash = "#/login";
+    return;
+  }
+  if (!me.dev) {
+    location.hash = "#/become-developer";
     return;
   }
 

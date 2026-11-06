@@ -19,9 +19,10 @@ export function renderTerms(el) {
         <li>You will fix problems and answer user reports quickly.</li>
       </ul>
       <h2>How checking works</h2>
-      <p>Our bot checks the APK file, its signature, permissions, screenshots and icon, and scans it with ClamAV and VirusTotal.
+      <p>Every upload is reviewed automatically within minutes. We check the APK file, its signature, permissions, screenshots and icon, the app text, and scan it for malware.
          <b>Your APK is uploaded to VirusTotal, which shares samples with the security community.</b>
-         Apps that look risky are held for a manual review. Automatic checks are not perfect, so a published app is not a guarantee of safety.</p>
+         An app that breaks the rules above (malware, abusive or adult content, copied brands, piracy or cheating words) is rejected automatically, and we email you the reason so you can fix it and submit again.
+         Automatic checks are not perfect, so a published app is not a guarantee of safety.</p>
       <h2>Reports</h2>
       <p>If you find a harmful or copied app, contact the developer or the store owner so it can be taken down.</p>
     </article>`);

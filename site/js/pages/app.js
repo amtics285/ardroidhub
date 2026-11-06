@@ -33,7 +33,7 @@ export async function renderApp(el, [id], user) {
       <div><b>${a.versionName || "-"}</b><span>Version</span></div>
       <div><b>${fmtSize(a.size) || "-"}</b><span>Size</span></div>
       <div><b>${a.minSdk ? "Android " + a.minSdk + "+" : "-"}</b><span>API level</span></div>
-      <div><b>${a.vt ? "Scanned" : "Checked"}</b><span>By bot</span></div>
+      <div><b>${a.category || "-"}</b><span>Category</span></div>
     </section>
 
     ${published

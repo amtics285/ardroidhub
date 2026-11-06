@@ -24,3 +24,7 @@ export const LIMITS = {
   minShots: 2,
   maxShots: 8,
 };
+
+// Support. Leave SUPPORT_EMAIL empty to show only the GitHub issues link on the Support page.
+export const SUPPORT_EMAIL = "";
+export const SUPPORT_ISSUES_URL = "https://github.com/amtics285/ardroidhub/issues";

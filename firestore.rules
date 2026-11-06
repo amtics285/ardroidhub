@@ -28,9 +28,18 @@ service cloud.firestore {
     }
 
     // Public developer profile (shown on app pages).
+    // Anyone with a verified account can become a developer from the menu ("Become a developer").
     match /developers/{uid} {
       allow read: if true;
-      allow create, update: if signedIn() && request.auth.uid == uid
+      allow create: if verified() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'devType', 'website', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.devType in ['individual', 'company']
+        && request.resource.data.website is string
+        && request.resource.data.website.size() <= 200;
+      allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'devType', 'website', 'createdAt'])
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 2
@@ -41,7 +50,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Private developer details (phone, email) plus the counters that rate-limit the email codes.
+    // Private account details (email, optional phone) plus the counters that rate-limit the email codes.
     // The Worker updates the counters AS the user, so these rules are what enforce the limits:
     //  - a new code needs 60 s since the last one, and at most 20 codes per account
     //  - at most 30 code guesses per account, counted one by one (no parallel guessing)
@@ -66,6 +75,10 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifyTries'])
           && request.resource.data.verifyTries == resource.data.get('verifyTries', 0) + 1
           && request.resource.data.verifyTries <= 30
+        ) || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone'])
+          && request.resource.data.phone is string
+          && request.resource.data.phone.size() <= 20
         )
       );
 

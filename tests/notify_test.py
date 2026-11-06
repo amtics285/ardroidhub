@@ -16,7 +16,7 @@ mailer.smtplib.SMTP_SSL = FakeSMTP
 mailer.smtplib.SMTP = FakeSMTP
 
 evil = "<b>Evil</b>\r\nBcc: x@y.z"
-for kind in ["received", "review", "approved", "rejected"]:
+for kind in ["received", "approved", "rejected"]:
     subj, text, page = notify.compose(kind, evil, "abc1234567", "bad <script>alert(1)</script>", "Dev <x>")
     assert "\n" not in subj and "\r" not in subj, subj
     assert "<script>" not in page and "<b>Evil" not in page

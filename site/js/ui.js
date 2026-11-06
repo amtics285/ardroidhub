@@ -64,12 +64,28 @@ export function toast(msg, kind = "") {
 
 export const STATUS = {
   draft: { label: "Draft", cls: "gray", help: "Not submitted yet." },
-  pending: { label: "In queue", cls: "blue", help: "Waiting for the bot." },
-  checking: { label: "Checking", cls: "blue", help: "The bot is checking your files now." },
-  review: { label: "Manual review", cls: "amber", help: "Something needs a human look. We will decide soon." },
+  pending: { label: "In queue", cls: "blue", help: "Waiting for its turn. This usually takes a few minutes." },
+  checking: { label: "Reviewing", cls: "blue", help: "We are reviewing your files right now." },
   approved: { label: "Published", cls: "green", help: "Live on the store." },
   rejected: { label: "Rejected", cls: "red", help: "Fix the problems below and submit again." },
 };
+
+// Live progress shown to the developer: Submitted > In queue > Checking files > Final checks > Published/Rejected.
+export function phases(a) {
+  const rejected = a.status === "rejected";
+  const at = a.status === "pending" ? 1 : a.status === "checking" ? (a.stage === "final" ? 3 : 2) : 4;
+  const labels = ["Submitted", "In queue", "Checking files", "Final checks", rejected ? "Rejected" : "Published"];
+  return html`
+    <ol class="phases" aria-label="Review progress">
+      ${labels.map((l, i) => {
+        let cls = "";
+        if (a.status === "approved") cls = "done";
+        else if (rejected) cls = i < 4 ? "done" : "fail";
+        else cls = i < at ? "done" : i === at ? "active" : "";
+        return html`<li class="${cls}"><span>${i < at || cls === "done" ? "✓" : i + 1}</span>${l}</li>`;
+      })}
+    </ol>`;
+}
 
 export function badge(status) {
   const s = STATUS[status] || { label: status || "Unknown", cls: "gray" };
