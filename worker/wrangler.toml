@@ -6,7 +6,7 @@ compatibility_date = "2025-09-01"
 FIREBASE_PROJECT_ID = "chirpchat-8puu7"
 GH_OWNER = "amtics285"
 GH_REPO = "ardroidhub"
-ALLOWED_ORIGIN = "https://amtics285.github.io"
+ALLOWED_ORIGIN = "https://amtics285.github.io,https://ardroidhub.vercel.app"
 
 # Secrets (set by the deploy workflow from GitHub secrets, never written here):
 #   GH_PAT, MAIL_KEY (AES key shared with the email bot), CODE_SECRET (HMAC key for the 6-digit codes),

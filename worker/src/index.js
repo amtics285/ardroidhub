@@ -651,7 +651,7 @@ function getAppId(url) {
 
 function originAllowed(origin, env) {
   if (!origin) return false;
-  if (origin === env.ALLOWED_ORIGIN) return true;
+  if (String(env.ALLOWED_ORIGIN || '').split(',').map((x) => x.trim()).includes(origin)) return true;
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 
