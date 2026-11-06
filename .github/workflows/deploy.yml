@@ -42,6 +42,9 @@ jobs:
 
   site:
     needs: worker
+    # Publish the site even if the Worker step failed (e.g. a Cloudflare API outage);
+    # the Worker that is already deployed keeps working.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
