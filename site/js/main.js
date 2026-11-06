@@ -183,3 +183,17 @@ onAuthStateChanged(auth, (user) => {
   route();
   if (first) window.addEventListener("hashchange", route);
 });
+
+// Share button (app cards and app page): native share sheet, else copy the link.
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-share]");
+  if (!b) return;
+  e.preventDefault();
+  const url = location.origin + location.pathname + "#/app/" + b.dataset.share;
+  const name = b.dataset.name || "this app";
+  try {
+    if (navigator.share) { await navigator.share({ title: name, text: "Get " + name + " on AR DroidHub", url }); return; }
+  } catch (err) { if (err && err.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); toast("Link copied", "ok"); }
+  catch { window.prompt("Copy this link", url); }
+});

@@ -75,6 +75,7 @@ export async function renderApp(el, [id], user) {
       ? html`<p class="head-actions">
                <a class="btn big" id="installBtn" href="${a.apkUrl}" rel="noopener">${icon("download", 20)} Install (download APK)</a>
                <button class="btn big ghost" id="saveBtn" type="button">Save for later</button>
+               <button class="btn big ghost" type="button" data-share="${a.id}" data-name="${a.name}">${icon("share", 18)} Share</button>
              </p>
              <p class="muted small">Android may ask you to allow installs from this browser. This is normal for apps outside Google Play.
                ${user ? "" : html`<a href="#/login">Log in</a> to keep a history of the apps you download.`}</p>`

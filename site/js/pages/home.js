@@ -1,5 +1,6 @@
 import { db, collection, getDocs, query, where, limit } from "../fb.js";
 import { html, render, $, fmtSize, fmtNum, avgRating, stars } from "../ui.js";
+import { icon } from "../icons.js";
 import { CATEGORIES } from "../config.js";
 
 const CACHE_KEY = "ardh_apps_v2";
@@ -39,7 +40,7 @@ function cachedApps() {
 export function appCard(a) {
   const avg = avgRating(a);
   return html`
-    <a class="card app-card" href="#/app/${a.id}">
+    <div class="card-wrap"><a class="card app-card" href="#/app/${a.id}">
       <img class="icon" src="${a.iconUrl}" alt="" loading="lazy" decoding="async" width="72" height="72">
       <div class="app-card-text">
         <div class="app-name">${a.name}</div>
@@ -49,7 +50,8 @@ export function appCard(a) {
           <span class="muted">${a.downloads ? fmtNum(a.downloads) + " downloads" : a.category}${a.size ? " · " + fmtSize(a.size) : ""}</span>
         </div>
       </div>
-    </a>`;
+    </a>
+    <button class="share-btn" type="button" data-share="${a.id}" data-name="${a.name}" aria-label="Share ${a.name}" title="Share">${icon("share", 18)}</button></div>`;
 }
 
 const skeleton = html`<div class="grid">${[1, 2, 3, 4, 5, 6].map(() => html`
