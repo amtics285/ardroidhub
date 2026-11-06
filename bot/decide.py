@@ -12,6 +12,7 @@ import requests
 from firebase_admin import firestore
 
 import policy
+from notify import notify
 from common import API, WORK, delete_draft, get_app_id, gh_session, init_firestore, read_json, repo
 
 VT = "https://www.virustotal.com/api/v3"
@@ -219,6 +220,7 @@ def main():
             print("REJECT:", reason)
             delete_draft(s, app_id)
             ref.update({"status": "rejected", "reason": reason, "report": report, "updatedAt": now})
+            notify(db, app_id, "rejected", reason)
             return
 
         if flags and not force:
@@ -234,6 +236,7 @@ def main():
                     "updatedAt": now,
                 }
             )
+            notify(db, app_id, "review")
             return
 
         urls = publish(s, app_id, meta)
@@ -263,6 +266,7 @@ def main():
             update["vt"] = vt_stats
         ref.update(update)
         print("APPROVED:", urls["apkUrl"])
+        notify(db, app_id, "approved")
 
     except Exception as e:
         traceback.print_exc()

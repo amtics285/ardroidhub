@@ -16,7 +16,7 @@ function setNav(user) {
   const nav = $("#nav");
   if (user) {
     render(nav, html`
-      <a class="btn small" href="#/upload">+ Publish app</a>
+      <a class="btn small" href="#/upload"><span class="long">+ Publish app</span><span class="short">+ Publish</span></a>
       <a class="navlink" href="#/dashboard">My apps</a>
       <button class="navlink linklike" id="logoutBtn" type="button">Log out</button>`);
     $("#logoutBtn").onclick = async () => {
@@ -27,7 +27,7 @@ function setNav(user) {
   } else {
     render(nav, html`
       <a class="navlink" href="#/login">Log in</a>
-      <a class="btn small" href="#/register">Developer sign up</a>`);
+      <a class="btn small" href="#/register"><span class="long">Developer sign up</span><span class="short">Sign up</span></a>`);
   }
 }
 

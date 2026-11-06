@@ -60,7 +60,20 @@ export async function renderHome(el) {
   }
 
   render(el, html`
-    ${!q && !cat ? html`<section class="hero"><h1>Find Android apps</h1><p>Every app is scanned by our bot before it goes live.</p></section>` : ""}
+    ${!q && !cat ? html`
+      <section class="hero">
+        <h1>Find Android apps you can trust</h1>
+        <p>Every app is scanned by our bot for viruses, permissions and policy problems before it goes live.</p>
+        <div class="hero-actions">
+          <a class="btn big" href="#/upload">Publish your app</a>
+          <a class="btn big ghost" href="#/terms">Developer policy</a>
+        </div>
+        <div class="pills">
+          <span class="pill">Virus scanned</span>
+          <span class="pill">Free for developers</span>
+          <span class="pill">Direct APK download</span>
+        </div>
+      </section>` : ""}
     ${chips}
     ${body}`);
 }

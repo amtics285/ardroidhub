@@ -7,6 +7,7 @@ import os
 from firebase_admin import firestore
 
 from common import delete_draft, get_app_id, gh_session, init_firestore, set_output
+from notify import notify
 
 
 def main():
@@ -21,6 +22,7 @@ def main():
         return
 
     status = snap.to_dict().get("status")
+    retry = bool(snap.to_dict().get("botError"))  # a retry after a bot error: do not mail again
     print(f"App {app_id}: status={status}, action={action}")
 
     if action == "review":
@@ -47,6 +49,7 @@ def main():
                 "updatedAt": firestore.SERVER_TIMESTAMP,
             }
         )
+        notify(db, app_id, "rejected", reason)
         set_output("proceed", "false")
         return
     else:
@@ -55,6 +58,8 @@ def main():
         return
 
     ref.update({"status": "checking", "updatedAt": firestore.SERVER_TIMESTAMP})
+    if action == "review" and not retry:
+        notify(db, app_id, "received")
     set_output("proceed", "true")
 
 

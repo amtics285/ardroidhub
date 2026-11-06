@@ -7,16 +7,14 @@ import base64
 import json
 import os
 import re
-import smtplib
-import ssl
 import sys
 import time
-from email.message import EmailMessage
-from email.utils import formataddr
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-EMAIL_RE = re.compile(r"^[^\s@<>,;\"']+@[^\s@<>,;\"']+\.[^\s@<>,;\"']+$")
+import mailer
+
+EMAIL_RE = mailer.EMAIL_RE
 MAX_AGE_MS = 15 * 60 * 1000
 
 
@@ -44,25 +42,25 @@ def main():
 
     name = re.sub(r"[^\w .-]", "", str(data.get("name", "")))[:40].strip()
     greeting = f"Hi {name}," if name else "Hi,"
-    user = os.environ["SMTP_USER"]
-
-    msg = EmailMessage()
-    msg["From"] = formataddr(("AR DroidHub", user))
-    msg["To"] = to
-    msg["Subject"] = f"{code} is your AR DroidHub verification code"
-    msg.set_content(
+    text = (
         f"{greeting}\n\n"
         f"Your AR DroidHub verification code is:\n\n    {code}\n\n"
         "Enter it on the website to verify your email address. "
         "The code works for at least 10 minutes.\n\n"
         "If you did not create an AR DroidHub account, you can ignore this email.\n"
     )
-
-    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
-    port = int(os.environ.get("SMTP_PORT") or 465)
-    with smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=60) as s:
-        s.login(user, os.environ["SMTP_PASS"])
-        s.send_message(msg)
+    page = (
+        '<div style="background:#f6f8f9;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#1f2328">'
+        '<div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e1e5e9;border-radius:14px;overflow:hidden">'
+        '<div style="background:#01875f;color:#fff;padding:18px 24px;font-size:18px;font-weight:700">Verify your email</div>'
+        f'<div style="padding:24px"><p style="margin:0 0 14px">{greeting}</p>'
+        '<p style="margin:0 0 14px">Your AR DroidHub verification code is:</p>'
+        f'<p style="margin:0 0 18px;font-size:34px;letter-spacing:8px;font-weight:700;color:#016b4c">{code}</p>'
+        '<p style="margin:0 0 10px;color:#5f6872;font-size:14px">Enter it on the website. The code works for at least 10 minutes.</p>'
+        '<p style="margin:0;color:#5f6872;font-size:14px">If you did not create an AR DroidHub account, ignore this email.</p>'
+        "</div></div></div>"
+    )
+    mailer.send(to, f"{code} is your AR DroidHub verification code", text, page)
     print("Verification email sent.")
 
 

@@ -10,7 +10,12 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#/"><span class="logo">AR</span><span>DroidHub</span></a>
+    <!-- Put your logo at site/img/logo.png (square, PNG). Until then the green "AR" badge is shown. -->
+    <a class="brand" href="#/" aria-label="AR DroidHub home">
+      <img class="logo-img" src="img/logo.png" alt="" width="38" height="38"
+           onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo',textContent:'AR'}))">
+      <span>DroidHub</span>
+    </a>
     <form class="search" id="searchForm" role="search">
       <input id="searchInput" type="search" placeholder="Search apps" autocomplete="off" aria-label="Search apps">
     </form>
