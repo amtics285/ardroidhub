@@ -2,7 +2,7 @@ import {
   auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
   sendPasswordResetEmail, doc, setDoc, serverTimestamp,
 } from "../fb.js";
-import { html, render, $, toast } from "../ui.js";
+import { html, render, $, toast, enhancePasswords } from "../ui.js";
 import { sendCode } from "../mail.js";
 
 const AUTH_ERRORS = {
@@ -39,6 +39,7 @@ export function renderLogin(el, _p, user) {
       <p class="small"><a href="#/reset">Forgot password?</a></p>
       <p class="small">New here? <a href="#/register">Create an account</a></p>
     </div>`);
+  enhancePasswords(el);
 
   $("#f").onsubmit = async (e) => {
     e.preventDefault();
@@ -113,6 +114,7 @@ export function renderRegister(el, _p, user) {
       <p class="small">Already registered? <a href="#/login">Log in</a></p>
       <p class="small muted">Want to publish apps? Create your account first, then choose <b>Become a developer</b> in the menu.</p>
     </div>`);
+  enhancePasswords(el);
 
   $("#f").onsubmit = async (e) => {
     e.preventDefault();

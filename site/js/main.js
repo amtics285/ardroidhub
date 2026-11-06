@@ -1,6 +1,7 @@
 import { auth, onAuthStateChanged, signOut } from "./fb.js";
 import { $, html, render, toast } from "./ui.js";
 import { me, loadMe, initial } from "./state.js";
+import { icon } from "./icons.js";
 import { renderHome } from "./pages/home.js";
 import { renderApp } from "./pages/app.js";
 import { renderLogin, renderRegister, renderReset } from "./pages/auth.js";
@@ -26,24 +27,36 @@ function openMenu(open) {
   menuBtn.setAttribute("aria-expanded", String(open));
   drawer.setAttribute("aria-hidden", String(!open));
   document.body.classList.toggle("no-scroll", open);
-  if (open) drawer.querySelector("a,button")?.focus();
+  if (open) {
+    const here = location.hash.split("?")[0] || "#/";
+    drawer.querySelectorAll("a.drawer-link").forEach((a) => {
+      const on = a.getAttribute("href") === here || (here === "" && a.getAttribute("href") === "#/");
+      a.classList.toggle("current", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    drawer.querySelector("a,button")?.focus();
+  }
 }
+
+const item = (href, ico, label, cls = "") =>
+  html`<a class="drawer-link ${cls}" href="${href}">${icon(ico)}<span>${label}</span></a>`;
 
 function drawerContent(user) {
   const links = html`
     <div class="drawer-sep"></div>
-    <a class="drawer-link" href="#/about">About us</a>
-    <a class="drawer-link" href="#/privacy">Privacy policy</a>
-    <a class="drawer-link" href="#/support">Support</a>
-    <a class="drawer-link" href="#/company">Our company</a>
-    <a class="drawer-link" href="#/terms">Developer policy</a>`;
+    ${item("#/about", "info", "About us")}
+    ${item("#/privacy", "shield", "Privacy policy")}
+    ${item("#/support", "help", "Support")}
+    ${item("#/company", "building", "Our company")}
+    ${item("#/terms", "code", "Developer policy")}`;
   if (!user) {
     return html`
-      <div class="drawer-head"><b>Welcome</b><span class="muted small">Log in to manage your account</span></div>
-      <a class="drawer-link" href="#/">Home</a>
-      <a class="drawer-link" href="#/login">Log in</a>
-      <a class="drawer-link" href="#/register">Create account</a>
-      <a class="drawer-link strong" href="#/become-developer">Become a developer</a>
+      <div class="drawer-head"><img class="drawer-logo" src="img/logo-64.png" alt="" width="44" height="44">
+        <div class="drawer-who"><b>Welcome to AR DroidHub</b><span class="muted small">Log in to manage your account</span></div></div>
+      ${item("#/", "home", "Home")}
+      ${item("#/login", "login", "Log in")}
+      ${item("#/register", "userplus", "Create account")}
+      ${item("#/become-developer", "code", "Become a developer", "strong")}
       ${links}`;
   }
   return html`
@@ -51,16 +64,15 @@ function drawerContent(user) {
       <div class="avatar" aria-hidden="true">${initial(user)}</div>
       <div class="drawer-who"><b>${user.displayName || "Your account"}</b><span class="muted small">${user.email}</span></div>
     </div>
-    <a class="drawer-link" href="#/">Home</a>
-    <a class="drawer-link" href="#/account">Account</a>
-    <a class="drawer-link" href="#/profile">Edit profile</a>
+    ${item("#/", "home", "Home")}
+    ${item("#/account", "user", "Account")}
+    ${item("#/profile", "edit", "Edit profile")}
     ${me.dev
-      ? html`<a class="drawer-link strong" href="#/upload">Publish an app</a>
-             <a class="drawer-link" href="#/dashboard">My apps</a>`
-      : html`<a class="drawer-link strong" href="#/become-developer">Become a developer</a>`}
+      ? html`${item("#/upload", "upload", "Publish an app", "strong")}${item("#/dashboard", "grid", "My apps")}`
+      : item("#/become-developer", "code", "Become a developer", "strong")}
     ${links}
     <div class="drawer-sep"></div>
-    <button class="drawer-link linklike" id="logoutBtn" type="button">Log out</button>`;
+    <button class="drawer-link linklike" id="logoutBtn" type="button">${icon("logout")}<span>Log out</span></button>`;
 }
 
 function setNav(user) {

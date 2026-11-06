@@ -84,14 +84,6 @@ export function renderPrivacy(el) {
     <h2>Emails we send</h2>
     <p>We send the verification code, and for developers the status of each app (received, published or rejected). We do not send advertising.</p>
 
-    <h2>Who helps us run the store</h2>
-    <ul>
-      <li><b>Google Firebase</b> for sign-in and the database.</li>
-      <li><b>GitHub</b> to host this website and to store app files.</li>
-      <li><b>Cloudflare</b> to receive uploads from developers.</li>
-      <li><b>VirusTotal</b> for malware scanning of uploaded APKs.</li>
-    </ul>
-
     <h2>Cookies and tracking</h2>
     <p>We do not run ads or analytics trackers. Your browser keeps a sign-in session so you stay logged in.</p>
 
