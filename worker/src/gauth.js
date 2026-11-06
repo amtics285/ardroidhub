@@ -76,3 +76,53 @@ export async function setEmailVerified(env, uid) {
   });
   if (!r.ok) throw new Error('accounts:update failed ' + r.status);
 }
+
+// ---------- admin helpers (used by the admin panel) ----------
+
+const fval = (f) => {
+  if (!f) return undefined;
+  if ('stringValue' in f) return f.stringValue;
+  if ('integerValue' in f) return Number(f.integerValue);
+  if ('doubleValue' in f) return f.doubleValue;
+  if ('booleanValue' in f) return f.booleanValue;
+  if ('timestampValue' in f) return f.timestampValue;
+  return undefined;
+};
+export const plainDoc = (d) => {
+  const o = { id: d.name.split('/').pop() };
+  for (const [k, v] of Object.entries(d.fields || {})) {
+    const x = fval(v);
+    if (x !== undefined) o[k] = x;
+  }
+  return o;
+};
+
+export async function adminListApps(env) {
+  const token = await adminToken(env);
+  const r = await fetch(`https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'apps' }], limit: 500 } }),
+  });
+  if (!r.ok) throw new Error('list apps failed ' + r.status);
+  return (await r.json()).filter((x) => x.document).map((x) => plainDoc(x.document));
+}
+
+export async function adminListIds(env, path) {
+  const token = await adminToken(env);
+  const r = await fetch(`https://firestore.googleapis.com/v1/${fsDocName(env, path)}?pageSize=300&mask.fieldPaths=rating`, { headers: { Authorization: 'Bearer ' + token } });
+  if (!r.ok) return [];
+  return ((await r.json()).documents || []).map((d) => d.name);
+}
+
+export async function lookupEmail(env, uid) {
+  const token = await adminToken(env);
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/accounts:lookup`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: [uid] }),
+  });
+  if (!r.ok) throw new Error('lookup failed ' + r.status);
+  const u = ((await r.json()).users || [])[0];
+  return u && u.email ? { email: u.email, name: u.displayName || '' } : null;
+}

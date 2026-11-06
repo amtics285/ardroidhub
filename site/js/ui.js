@@ -113,6 +113,7 @@ export const STATUS = {
   checking: { label: "Reviewing", cls: "blue", help: "We are reviewing your files right now." },
   approved: { label: "Published", cls: "green", help: "Live on the store." },
   rejected: { label: "Rejected", cls: "red", help: "Fix the problems below and submit again." },
+  removed: { label: "Removed", cls: "red", help: "This app was removed from the store." },
 };
 
 // Live progress shown to the developer: Submitted > In queue > Checking files > Final checks > Published/Rejected.

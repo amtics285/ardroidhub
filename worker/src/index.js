@@ -2,6 +2,7 @@
 // Verifies the Firebase login token, then stores files in a *draft* GitHub release
 // (drafts are invisible to the public) and queues the review bot.
 
+import { handleAdmin, AdminError } from './admin.js';
 import { smtpSend } from './smtp.js';
 import { setEmailVerified, adminGet, adminCommit, fsDocName } from './gauth.js';
 import { hasBlockedWord } from './words.js';
@@ -24,11 +25,25 @@ const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg' };
 
 export default {
   async fetch(request, env) {
-    const cors = corsHeaders(request, env);
+    const url = new URL(request.url);
+    const isAdmin = url.pathname.startsWith('/admin/');
+    // The admin panel is a file on the owner's computer, so it has no website origin. It is protected by the secret key instead.
+    const cors = isAdmin
+      ? { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'X-Admin-Key, Content-Type', 'Access-Control-Max-Age': '86400' }
+      : corsHeaders(request, env);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     try {
-      const url = new URL(request.url);
+      if (isAdmin) {
+        if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
+        try {
+          return json(await handleAdmin(request, env, url.pathname, gh), 200, cors);
+        } catch (e) {
+          if (e instanceof AdminError) return json({ error: e.message }, e.status, cors);
+          console.error('admin error', e && e.stack ? e.stack : e);
+          return json({ error: 'Server error: ' + String(e && e.message).slice(0, 120) }, 500, cors);
+        }
+      }
       if (url.pathname === '/health') return json({ ok: true }, 200, cors);
       if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
       if (!originAllowed(request.headers.get('Origin'), env)) throw new HttpError(403, 'Origin not allowed');

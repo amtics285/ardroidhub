@@ -38,6 +38,7 @@ jobs:
             SMTP_USER
             SMTP_PASS
             FIREBASE_SERVICE_ACCOUNT
+            ADMIN_KEY
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
           MAIL_KEY: ${{ secrets.MAIL_KEY }}
@@ -45,6 +46,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
 
   site:
     needs: worker

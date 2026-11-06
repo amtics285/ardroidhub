@@ -523,6 +523,19 @@ await test("review: rules - login, verified email, valid stars, length, words, n
   assert.equal(commits.length, 0, "nothing may be written for rejected reviews");
 });
 
+await test("admin: needs the secret key, never opens without it", async () => {
+  const call = (key, path = "/admin/apps") => worker.fetch(new Request("https://w.example" + path, { method: "POST", headers: { "X-Admin-Key": key, "Content-Type": "application/json" }, body: "{}" }), e2);
+  const e2 = { ...env, FIREBASE_SERVICE_ACCOUNT: "{}" };
+  let r = await worker.fetch(new Request("https://w.example/admin/apps", { method: "POST", body: "{}" }), { ...env }); // no ADMIN_KEY set
+  assert.equal(r.status, 503);
+  e2.ADMIN_KEY = "k".repeat(32);
+  assert.equal((await call("wrong-key-wrong-key-wrong-key-00")).status, 401);
+  assert.equal((await call("")).status, 401);
+  r = await worker.fetch(new Request("https://w.example/admin/apps", { method: "OPTIONS" }), e2);
+  assert.equal(r.status, 204);
+  assert.equal(r.headers.get("Access-Control-Allow-Headers").includes("X-Admin-Key"), true);
+});
+
 globalThis.fetch = prevFetch;
 
 console.log(`\n${passed} worker tests passed`);
