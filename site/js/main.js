@@ -132,8 +132,14 @@ const routes = [
   [/^#\/company$/, lazy("./pages/info.js", "renderCompany")],
 ];
 
+const PUBLIC_ROUTE = /^#?\/?$|^#\/app\/|^#\/(about|privacy|support|company|terms)$/;
+let publicShown = false;
+
 async function route() {
-  if (!authReady) return;
+  const path0 = location.hash.split("?")[0] || "#/";
+  // Public pages (store, app pages, info) do not wait for the sign-in check: some in-app browsers
+  // (WhatsApp, Instagram) are slow to start it, which used to leave a shared link blank.
+  if (!authReady && !PUBLIC_ROUTE.test(path0)) return;
   const mine = ++routeToken;
   if (typeof cleanup === "function") {
     cleanup();
@@ -180,9 +186,24 @@ onAuthStateChanged(auth, (user) => {
   });
   const first = !authReady;
   authReady = true;
-  route();
-  if (first) window.addEventListener("hashchange", route);
+  // If a public page is already on screen and nobody is signed in, there is nothing to redraw.
+  if (!(first && publicShown && !user)) route();
 });
+
+if (PUBLIC_ROUTE.test(location.hash.split("?")[0] || "#/")) {
+  publicShown = true;
+  route();
+}
+// Safety net: if the sign-in check never answers, still let the whole site work as signed out.
+setTimeout(() => {
+  if (!authReady) {
+    authReady = true;
+    me.ready = Promise.resolve();
+    setNav(null);
+    route();
+  }
+}, 4000);
+window.addEventListener("hashchange", route);
 
 // Share button (app cards and app page): native share sheet, else copy the link.
 document.addEventListener("click", async (e) => {

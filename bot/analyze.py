@@ -49,12 +49,12 @@ def check_icon():
             im.load()
         if fmt not in ("PNG", "JPEG"):
             add("fail", "App icon", f"must be PNG or JPG (got {fmt})")
-        elif (w, h) != (512, 512):
-            add("fail", "App icon", f"must be exactly 512x512 px (yours is {w}x{h})")
-        elif size_bytes > 1024 * 1024:
-            add("fail", "App icon", "must be 1 MB or smaller")
+        elif min(w, h) < 96 or max(w, h) > 4096:
+            add("fail", "App icon", f"must be between 96 and 4096 px (yours is {w}x{h})")
+        elif size_bytes > 2 * 1024 * 1024:
+            add("fail", "App icon", "must be 2 MB or smaller")
         else:
-            add("pass", "App icon", "512x512, OK")
+            add("pass", "App icon", f"{w}x{h}, OK")
             meta["icon"] = os.path.basename(path)
     except Exception as e:  # corrupt / decompression bomb / not an image
         add("fail", "App icon", f"not a valid image ({type(e).__name__})")
@@ -76,10 +76,8 @@ def check_screenshots():
                 im.load()
             if fmt not in ("PNG", "JPEG"):
                 problems.append(f"{name}: must be PNG or JPG")
-            elif min(w, h) < 320 or max(w, h) > 3840:
-                problems.append(f"{name}: each side must be between 320 and 3840 px (yours is {w}x{h})")
-            elif max(w, h) > 2 * min(w, h):
-                problems.append(f"{name}: longer side can not be more than 2x the shorter side ({w}x{h})")
+            elif min(w, h) < 200 or max(w, h) > 8000:
+                problems.append(f"{name}: each side must be between 200 and 8000 px (yours is {w}x{h})")
             elif size_bytes > 8 * 1024 * 1024:
                 problems.append(f"{name}: must be 8 MB or smaller")
             else:

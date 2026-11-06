@@ -134,12 +134,15 @@ def virustotal(path, sha, report, errors, flags):
 
 # ---------- publishing ----------
 
-def publish(s, app_id, meta):
+def publish(s, app_id, meta, app_name=""):
     """Copy the checked files from ./work into a new PUBLIC release and return their URLs."""
     r_name = repo()
     version_code = meta.get("versionCode", 0)
     tag = f"app-{app_id}-v{version_code}"
-    apk_name = re.sub(r"[^A-Za-z0-9._-]", "_", f"{meta['package']}-{meta.get('versionName') or version_code}.apk")
+    # The file people download is named after the app ("Photo_Lab-1.2.apk"), not its package name.
+    base_name = re.sub(r"[^A-Za-z0-9]+", "_", app_name).strip("_") or meta["package"]
+    ver = re.sub(r"[^A-Za-z0-9._-]", "_", str(meta.get("versionName") or version_code))
+    apk_name = f"{base_name[:40]}-{ver}.apk"
 
     r = s.post(
         f"{API}/repos/{r_name}/releases",
@@ -225,7 +228,7 @@ def main():
             notify(db, app_id, "rejected", reason)
             return
 
-        urls = publish(s, app_id, meta)
+        urls = publish(s, app_id, meta, doc.get("name") or "")
         delete_draft(s, app_id)
         update = {
             "status": "approved",

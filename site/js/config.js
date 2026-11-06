@@ -19,7 +19,7 @@ export const CATEGORIES = [
 
 export const LIMITS = {
   apkMB: 95,
-  iconBytes: 1024 * 1024,
+  iconBytes: 2 * 1024 * 1024,
   shotBytes: 8 * 1024 * 1024,
   minShots: 2,
   maxShots: 8,

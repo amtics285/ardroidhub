@@ -110,8 +110,6 @@ export async function renderApp(el, [id], user) {
       ${privacy ? html`<dt>Privacy policy</dt><dd><a href="${privacy}" rel="noopener noreferrer nofollow" target="_blank">${privacy}</a></dd>` : ""}
       ${a.package ? html`<dt>Package</dt><dd>${a.package}</dd>` : ""}
       ${a.versionName ? html`<dt>Version</dt><dd>${a.versionName}</dd>` : ""}
-      ${a.publishedAt ? html`<dt>Published</dt><dd>${fmtDate(a.publishedAt)}</dd>` : ""}
-      ${a.sha256 ? html`<dt>SHA-256</dt><dd class="mono">${a.sha256}</dd>` : ""}
     </dl>
   `);
 

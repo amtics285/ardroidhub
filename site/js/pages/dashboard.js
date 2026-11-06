@@ -32,7 +32,7 @@ function row(a) {
   return html`
     <div class="card pad app-row" data-id="${a.id}">
       <div class="app-row-main">
-        ${a.iconUrl ? html`<img class="icon" src="${a.iconUrl}" alt="" width="56" height="56">` : html`<div class="icon placeholder"></div>`}
+        ${a.iconUrl || a.iconThumb ? html`<img class="icon" src="${a.iconUrl || a.iconThumb}" alt="" width="56" height="56">` : html`<div class="icon placeholder"></div>`}
         <div class="grow">
           <div class="app-name">${a.name || "(no name)"} ${badge(a.status)}</div>
           <div class="muted small">${st.help || ""}</div>

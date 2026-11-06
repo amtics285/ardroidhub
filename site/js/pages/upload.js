@@ -26,13 +26,13 @@ const isImageType = (f) => f.type === "image/png" || f.type === "image/jpeg";
 
 async function checkIcon(file) {
   if (!isImageType(file)) throw new Error("Icon must be a PNG or JPG file.");
-  if (file.size > LIMITS.iconBytes) throw new Error("Icon must be 1 MB or smaller.");
+  if (file.size > LIMITS.iconBytes) throw new Error("Icon must be 2 MB or smaller.");
   const info = await loadImage(file).catch(() => {
     throw new Error("That file is not a valid image.");
   });
-  if (info.w !== 512 || info.h !== 512) {
+  if (Math.min(info.w, info.h) < 96 || Math.max(info.w, info.h) > 4096) {
     URL.revokeObjectURL(info.url);
-    throw new Error(`Icon must be exactly 512 x 512 px (yours is ${info.w} x ${info.h}).`);
+    throw new Error(`Icon must be between 96 and 4096 px (yours is ${info.w} x ${info.h}).`);
   }
   return info.url;
 }
@@ -43,13 +43,30 @@ async function checkShot(file) {
   const info = await loadImage(file).catch(() => {
     throw new Error(`${file.name}: not a valid image.`);
   });
-  const lo = Math.min(info.w, info.h);
-  const hi = Math.max(info.w, info.h);
-  if (lo < 320 || hi > 3840 || hi > 2 * lo) {
+  if (Math.min(info.w, info.h) < 200 || Math.max(info.w, info.h) > 8000) {
     URL.revokeObjectURL(info.url);
-    throw new Error(`${file.name}: each side must be 320-3840 px and the long side at most 2x the short side (yours is ${info.w} x ${info.h}).`);
+    throw new Error(`${file.name}: each side must be between 200 and 8000 px (yours is ${info.w} x ${info.h}).`);
   }
   return info.url;
+}
+
+// Small square preview (about 5 KB) sent with the submit so the dashboard can show the icon during review.
+async function makeThumb(file) {
+  try {
+    const info = await loadImage(file);
+    const img = new Image();
+    img.src = info.url;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = c.height = 96;
+    const ctx = c.getContext("2d");
+    const side = Math.min(info.w, info.h);
+    ctx.drawImage(img, (info.w - side) / 2, (info.h - side) / 2, side, side, 0, 0, 96, 96);
+    URL.revokeObjectURL(info.url);
+    return c.toDataURL("image/jpeg", 0.8);
+  } catch {
+    return "";
+  }
 }
 
 async function checkApk(file) {
@@ -61,10 +78,11 @@ async function checkApk(file) {
 
 /* ---------- network ---------- */
 
-async function authedPost(path, params, token) {
+async function authedPost(path, params, token, json) {
   const r = await fetch(`${WORKER_URL}${path}?${new URLSearchParams(params)}`, {
     method: "POST",
-    headers: { Authorization: "Bearer " + token },
+    headers: json ? { Authorization: "Bearer " + token, "Content-Type": "application/json" } : { Authorization: "Bearer " + token },
+    body: json ? JSON.stringify(json) : undefined,
   });
   let body = {};
   try {
@@ -237,11 +255,11 @@ export async function renderUpload(el, [existingId], user) {
     shell(html`
       <h1>Graphics</h1>
       <h3>App icon</h3>
-      <p class="muted small">PNG or JPG, exactly 512 x 512 px, up to 1 MB.</p>
+      <p class="muted small">PNG or JPG, up to 2 MB. A square image works best.</p>
       ${S.icon ? html`<div class="thumbs"><div class="thumb"><img src="${S.icon.url}" alt="Icon preview"><button type="button" class="x" id="rmIcon" aria-label="Remove icon">×</button></div></div>` : html`<input type="file" id="iconIn" accept="image/png,image/jpeg">`}
 
       <h3>Screenshots</h3>
-      <p class="muted small">${LIMITS.minShots} to ${LIMITS.maxShots} screenshots. PNG or JPG, each side 320-3840 px, the long side at most 2x the short side, up to 8 MB each.</p>
+      <p class="muted small">${LIMITS.minShots} to ${LIMITS.maxShots} screenshots. PNG or JPG, any normal phone screenshot size, up to 8 MB each.</p>
       <div class="thumbs">
         ${S.shots.map((s, i) => html`<div class="thumb"><img src="${s.url}" alt="Screenshot ${i + 1}"><button type="button" class="x" data-rm="${i}" aria-label="Remove screenshot ${i + 1}">×</button></div>`)}
       </div>
@@ -415,7 +433,7 @@ export async function renderUpload(el, [existingId], user) {
       }
       $("#progText").textContent = "Starting the review…";
       token = await auth.currentUser.getIdToken(true);
-      await authedPost("/submit", { appId: S.appId }, token);
+      await authedPost("/submit", { appId: S.appId }, token, { iconThumb: await makeThumb(S.icon.file) });
       finished();
     } catch (ex) {
       console.error(ex);

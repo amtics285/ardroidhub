@@ -140,6 +140,21 @@ async function handleSubmit(request, env, url) {
 
   if (app.status === 'draft') await setStatus(env, appId, auth.token, 'pending');
 
+  // A tiny preview of the icon so the developer sees their logo on the dashboard while the app is
+  // still being reviewed (the real icon is only public after publishing). Never blocks the submit.
+  try {
+    const body = await request.clone().json().catch(() => ({}));
+    const thumb = String(body.iconThumb || '');
+    if (/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(thumb) && thumb.length <= 30000) {
+      await adminCommit(env, [{
+        update: { name: fsDocName(env, `apps/${appId}`), fields: { iconThumb: { stringValue: thumb } } },
+        updateMask: { fieldPaths: ['iconThumb'] },
+      }]);
+    }
+  } catch (e) {
+    console.error('icon preview failed', String(e));
+  }
+
   const r = await gh(env, `/repos/${env.GH_OWNER}/${env.GH_REPO}/actions/workflows/review.yml/dispatches`, {
     method: 'POST',
     body: JSON.stringify({ ref: 'main', inputs: { app_id: appId, action: 'review' } }),
