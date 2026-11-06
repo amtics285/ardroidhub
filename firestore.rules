@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validApp(d) {
+      return d.name is string && d.name.size() >= 2 && d.name.size() <= 50
+        && d.shortDesc is string && d.shortDesc.size() >= 5 && d.shortDesc.size() <= 80
+        && d.fullDesc is string && d.fullDesc.size() <= 4000
+        && d.category in ['Tools', 'Games', 'Social', 'Education', 'Entertainment',
+                          'Productivity', 'Photography', 'Music', 'Lifestyle',
+                          'Finance', 'Communication', 'Other']
+        && d.appType in ['app', 'game']
+        && d.contactEmail is string && d.contactEmail.size() <= 100
+        && d.privacyUrl is string && d.privacyUrl.size() <= 300
+        && d.whatsNew is string && d.whatsNew.size() <= 500;
+    }
+
+    // Only the owner can see their own admin entry. Admins are added by hand in the console.
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Public developer profile (shown on app pages).
+    match /developers/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'devType', 'website', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.devType in ['individual', 'company']
+        && request.resource.data.website is string
+        && request.resource.data.website.size() <= 200;
+      allow delete: if false;
+    }
+
+    // Private developer details (phone, email). Only the owner can read or write.
+    match /developersPrivate/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['phone', 'email', 'createdAt'])
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 20;
+      allow delete: if false;
+    }
+
+    // Apps. Clients can only create drafts and move them draft -> pending (via the Worker).
+    // Everything else (checking, review, approved, rejected, apkUrl, package, ...) is written
+    // by the GitHub Actions bot using the Admin SDK, which bypasses these rules.
+    match /apps/{appId} {
+      allow read: if resource.data.status == 'approved'
+                  || (signedIn() && resource.data.ownerUid == request.auth.uid)
+                  || isAdmin();
+
+      allow create: if verified()
+        && request.resource.data.keys().hasOnly([
+             'ownerUid', 'developerName', 'name', 'shortDesc', 'fullDesc', 'category',
+             'appType', 'contactEmail', 'privacyUrl', 'whatsNew', 'status',
+             'createdAt', 'updatedAt', 'downloads'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'draft'
+        && request.resource.data.downloads == 0
+        && request.resource.data.developerName ==
+             get(/databases/$(database)/documents/developers/$(request.auth.uid)).data.name
+        && validApp(request.resource.data);
+
+      allow update: if verified()
+        && resource.data.ownerUid == request.auth.uid
+        && (
+             (resource.data.status == 'draft'
+                && request.resource.data.status in ['draft', 'pending'])
+          || (resource.data.status == 'rejected'
+                && request.resource.data.status == 'draft')
+           )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'name', 'shortDesc', 'fullDesc', 'category', 'appType', 'contactEmail',
+             'privacyUrl', 'whatsNew', 'status', 'updatedAt', 'reason', 'report'])
+        && validApp(request.resource.data);
+
+      allow delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && resource.data.status in ['draft', 'rejected'];
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,89 @@
+name: Review app
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: Firestore app id
+        required: true
+        type: string
+      action:
+        description: review (normal) | approve / reject (for apps held in manual review)
+        required: true
+        default: review
+        type: choice
+        options: [review, approve, reject]
+      reason:
+        description: Reject reason (shown to the developer)
+        required: false
+        type: string
+
+concurrency:
+  group: review-${{ inputs.app_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      APP_ID: ${{ inputs.app_id }}
+      ACTION: ${{ inputs.action }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: bot/requirements.txt
+
+      - name: Install Python packages
+        run: pip install -r bot/requirements.txt
+
+      # 1. Trusted step: look at Firestore only, mark the app as "checking".
+      - name: Begin
+        id: begin
+        working-directory: bot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python begin.py
+
+      - name: Install scanners (ClamAV, apksigner)
+        if: steps.begin.outputs.proceed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clamav clamav-freshclam apksigner
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam || echo "freshclam failed, ClamAV will report a scanner error"
+
+      # 2. Download uploaded files. Only the GitHub token is available here.
+      - name: Download files
+        if: steps.begin.outputs.proceed == 'true'
+        working-directory: bot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python fetch.py
+
+      # 3. Inspect the untrusted files. NO secrets are passed to this step.
+      - name: Analyze files
+        if: steps.begin.outputs.proceed == 'true'
+        working-directory: bot
+        run: python analyze.py
+
+      # 4. Decide + publish. Never opens the uploaded files with parsers.
+      - name: Decide and publish
+        if: steps.begin.outputs.proceed == 'true'
+        working-directory: bot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: python decide.py

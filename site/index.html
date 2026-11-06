@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AR DroidHub</title>
+  <meta name="description" content="AR DroidHub - a community store for Android apps, checked by a bot.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2301875f'/%3E%3Cpath d='M30 62a20 20 0 0 1 40 0z' fill='white'/%3E%3Ccircle cx='41' cy='55' r='3' fill='%2301875f'/%3E%3Ccircle cx='59' cy='55' r='3' fill='%2301875f'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><span class="logo">AR</span><span>DroidHub</span></a>
+    <form class="search" id="searchForm" role="search">
+      <input id="searchInput" type="search" placeholder="Search apps" autocomplete="off" aria-label="Search apps">
+    </form>
+    <nav id="nav" class="nav"></nav>
+  </header>
+
+  <main id="view" class="container"></main>
+
+  <footer class="footer">
+    <span>AR DroidHub</span>
+    <a href="#/terms">Developer policy</a>
+    <span class="muted">Apps are checked by a bot, but install at your own risk.</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

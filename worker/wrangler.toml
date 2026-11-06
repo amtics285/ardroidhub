@@ -1,0 +1,11 @@
+name = "ardroidhub-upload"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+FIREBASE_PROJECT_ID = "chirpchat-8puu7"
+GH_OWNER = "amtics285"
+GH_REPO = "ardroidhub"
+ALLOWED_ORIGIN = "https://amtics285.github.io"
+
+# Secret (set by the deploy workflow, never written here): GH_PAT
