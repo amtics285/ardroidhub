@@ -488,3 +488,59 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
 .tile-meta { display: flex; gap: 8px; }
 .rank { position: absolute; top: 10px; right: 10px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 8px; background: rgba(16,24,40,.72); color: #fff; font-size: .75rem; font-weight: 700; display: grid; place-items: center; }
 @media (max-width: 520px) { .hero-search .btn { padding: 10px 16px; } .tile-wrap { width: 132px; } }
+
+/* ---------- phone-first polish ---------- */
+.menu-btn { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--green-soft); box-shadow: none; }
+.menu-btn:hover { background: #d3ecdf; }
+.menu-btn span { left: 13px; right: 13px; height: 2.4px; background: var(--green-dark); }
+.menu-btn span:nth-child(1) { top: 15px; }
+.menu-btn span:nth-child(2) { top: 21px; width: auto; right: 13px; }
+.menu-btn span:nth-child(3) { top: 27px; width: 12px; }
+.menu-btn[aria-expanded="true"] span:nth-child(1) { top: 21px; }
+.menu-btn[aria-expanded="true"] span:nth-child(3) { top: 21px; width: auto; }
+.search-toggle { display: none; flex: none; width: 42px; height: 42px; border: 0; border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; place-items: center; }
+.search-toggle:hover { background: var(--green-soft); }
+
+@media (max-width: 760px) {
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+  .brand { flex: 1; min-width: 0; }
+  .brand span { font-size: 1.05rem; }
+  .logo-img { width: 34px; height: 34px; }
+  .menu-btn { width: 40px; height: 40px; }
+  .menu-btn span { left: 12px; right: 12px; }
+  .menu-btn span:nth-child(1) { top: 13.5px; } .menu-btn span:nth-child(2) { top: 19.5px; right: 12px; } .menu-btn span:nth-child(3) { top: 25.5px; width: 11px; }
+  .menu-btn[aria-expanded="true"] span:nth-child(1), .menu-btn[aria-expanded="true"] span:nth-child(3) { top: 19.5px; }
+  .search-toggle { display: grid; }
+  .search { display: none; order: 5; flex: 1 1 100%; max-width: none; margin: 0 0 4px; }
+  .topbar.search-open .search { display: block; }
+  .nav { margin-left: 0; gap: 4px; }
+  .nav .navlink { display: none; }
+  .nav .btn.small { padding: 8px 16px; }
+
+  .hero { margin: -4px calc(-1 * var(--gutter)) 0; border-radius: 0 0 28px 28px; padding: 22px 18px 24px; box-shadow: none; }
+  .hero::after { display: none; }
+  .hero h1 { font-size: 1.65rem; line-height: 1.15; max-width: 14ch; }
+  .hero p { font-size: .98rem; margin-top: 6px; }
+  .hero-search { margin-top: 18px; padding: 5px; border-radius: 16px; }
+  .hero-search input { padding: 0 10px; font-size: 1rem; min-height: 44px; }
+  .hero-search .btn { padding: 0 18px; min-height: 44px; }
+  .hero-stats { margin-top: 18px; gap: 0; justify-content: space-between; background: rgba(255,255,255,.14); border-radius: 16px; padding: 12px 6px; }
+  .hero-stats div { flex: 1; align-items: center; }
+  .hero-stats div + div { border-left: 1px solid rgba(255,255,255,.25); }
+  .hero-stats b { font-size: 1.25rem; }
+  .hero-stats span { font-size: .75rem; }
+
+  .chips { margin: 0 calc(-1 * var(--gutter)); padding: 14px var(--gutter) 10px; gap: 8px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+           -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%); }
+  .chip { scroll-snap-align: start; padding: 8px 16px; font-size: .9rem; border-radius: 999px; flex: none; }
+  .chip.active { box-shadow: none; }
+  .section-title { font-size: 1.15rem; margin: 22px 0 10px; }
+  .rail { margin: 0 calc(-1 * var(--gutter)); padding: 4px var(--gutter) 14px; scroll-padding-left: var(--gutter); }
+  .tile-wrap { width: 138px; }
+  .tile .icon { width: 80px; height: 80px; }
+  .grid { grid-template-columns: 1fr; gap: 10px; }
+  .app-card { padding: 14px; gap: 14px; border-radius: 18px; }
+  .app-card .icon { width: 64px; height: 64px; border-radius: 17px; }
+  .card-wrap .app-card { padding-right: 52px; }
+  .share-btn { top: 8px; right: 8px; width: 34px; height: 34px; }
+}

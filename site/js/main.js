@@ -221,3 +221,15 @@ document.addEventListener("click", async (e) => {
 });
 
 new MutationObserver(() => enhanceSelects(view)).observe(view, { childList: true, subtree: true });
+
+// Phone: the search box hides behind a magnifier button so the top bar stays tidy.
+{
+  const bar = document.querySelector(".topbar");
+  const tg = $("#searchToggle");
+  tg.onclick = () => {
+    const open = bar.classList.toggle("search-open");
+    tg.setAttribute("aria-expanded", String(open));
+    if (open) $("#searchInput").focus();
+  };
+  $("#searchForm").addEventListener("submit", () => { bar.classList.remove("search-open"); tg.setAttribute("aria-expanded", "false"); });
+}
