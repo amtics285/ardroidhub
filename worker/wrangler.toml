@@ -9,4 +9,5 @@ GH_REPO = "ardroidhub"
 ALLOWED_ORIGIN = "https://amtics285.github.io"
 
 # Secrets (set by the deploy workflow from GitHub secrets, never written here):
-#   GH_PAT, MAIL_KEY (AES key shared with the email bot), CODE_SECRET (HMAC key for the 6-digit codes)
+#   GH_PAT, MAIL_KEY (AES key shared with the email bot), CODE_SECRET (HMAC key for the 6-digit codes),
+#   SMTP_USER / SMTP_PASS (the Worker sends the code mail itself), FIREBASE_SERVICE_ACCOUNT (marks the email verified instantly)

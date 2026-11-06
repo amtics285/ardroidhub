@@ -43,7 +43,7 @@ export function renderLogin(el, _p, user) {
 
   $("#f").onsubmit = async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector("button");
+    const btn = e.target.querySelector('button[type="submit"]');
     const err = $("#err");
     err.hidden = true;
     busy(btn, true, "Logging in…");
@@ -71,7 +71,7 @@ export function renderReset(el) {
     </div>`);
   $("#f").onsubmit = async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector("button");
+    const btn = e.target.querySelector('button[type="submit"]');
     busy(btn, true);
     try {
       await sendPasswordResetEmail(auth, e.target.email.value.trim());
@@ -120,7 +120,7 @@ export function renderRegister(el, _p, user) {
     e.preventDefault();
     const f = e.target;
     const err = $("#err");
-    const btn = f.querySelector("button");
+    const btn = f.querySelector('button[type="submit"]');
     const fail = (m) => {
       err.textContent = m;
       err.hidden = false;

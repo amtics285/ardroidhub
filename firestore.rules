@@ -8,6 +8,15 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    // devType is an old field that is still allowed if it exists; "about" is the new optional field.
+    function validDeveloper(d) {
+      return d.keys().hasOnly(['name', 'devType', 'about', 'website', 'createdAt'])
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 60
+        && d.website is string && d.website.size() <= 200
+        && (!('about' in d) || (d.about is string && d.about.size() <= 200))
+        && (!('devType' in d) || d.devType in ['individual', 'company']);
+    }
+
     function validApp(d) {
       return d.name is string && d.name.size() >= 2 && d.name.size() <= 50
         && d.shortDesc is string && d.shortDesc.size() >= 5 && d.shortDesc.size() <= 80
@@ -31,22 +40,9 @@ service cloud.firestore {
     // Anyone with a verified account can become a developer from the menu ("Become a developer").
     match /developers/{uid} {
       allow read: if true;
-      allow create: if verified() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'devType', 'website', 'createdAt'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 2
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.devType in ['individual', 'company']
-        && request.resource.data.website is string
-        && request.resource.data.website.size() <= 200;
-      allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'devType', 'website', 'createdAt'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 2
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.devType in ['individual', 'company']
-        && request.resource.data.website is string
-        && request.resource.data.website.size() <= 200;
+      // Creating needs a verified email; editing your own profile only needs to be signed in.
+      allow create: if verified() && request.auth.uid == uid && validDeveloper(request.resource.data);
+      allow update: if signedIn() && request.auth.uid == uid && validDeveloper(request.resource.data);
       allow delete: if false;
     }
 

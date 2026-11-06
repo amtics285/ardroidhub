@@ -336,3 +336,8 @@ label.check input { width: auto; margin-top: 4px; }
   * { transition: none !important; scroll-behavior: auto !important; }
 }
 .mine-card { flex-wrap: wrap; justify-content: space-between; }
+
+@media (max-width: 420px) {
+  .nav .navlink { display: none; } /* "Log in" is in the menu */
+  .brand span { font-size: .98rem; }
+}

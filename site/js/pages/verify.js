@@ -1,7 +1,6 @@
 import { auth } from "../fb.js";
 import { html, render, $, toast } from "../ui.js";
 import { sendCode, verifyCode, lastSentAt } from "../mail.js";
-import { takeNext } from "../state.js";
 
 export function renderVerify(el, _p, user) {
   if (!user) {
@@ -9,7 +8,7 @@ export function renderVerify(el, _p, user) {
     return;
   }
   if (user.emailVerified) {
-    location.hash = takeNext("#/account");
+    location.hash = "#/";
     return;
   }
 
@@ -77,17 +76,31 @@ export function renderVerify(el, _p, user) {
     const btn = e.target.querySelector("button");
     btn.disabled = true;
     btn.textContent = "Checking…";
+    let result = {};
     try {
-      await verifyCode(code);
+      result = await verifyCode(code);
     } catch (ex) {
       showErr(ex.message);
       btn.disabled = false;
       btn.textContent = "Verify";
       return;
     }
-    // The server now marks the account as verified. That takes up to a minute, so wait for it.
-    info.textContent = "Code accepted. Finishing up… (this can take up to a minute)";
+    // Normally the server has already marked the account as verified; only the sign-in token needs a refresh.
+    info.textContent = "Code accepted. Finishing up…";
     btn.textContent = "Please wait…";
+    const refresh = async () => {
+      try {
+        await auth.currentUser.reload();
+        await auth.currentUser.getIdToken(true);
+      } catch { /* try again below */ }
+      return !!(auth.currentUser && auth.currentUser.emailVerified);
+    };
+    if (result.done && (await refresh())) {
+      toast("Email verified. Welcome to AR DroidHub!", "ok");
+      if (alive) location.hash = "#/";
+      return;
+    }
+    // Slow path (the verification runs in the background): check every 2 seconds.
     const started = Date.now();
     polling = setInterval(async () => {
       try {
@@ -97,7 +110,7 @@ export function renderVerify(el, _p, user) {
       if (auth.currentUser && auth.currentUser.emailVerified) {
         clearInterval(polling);
         toast("Email verified. Welcome to AR DroidHub!", "ok");
-        if (alive) location.hash = takeNext("#/account");
+        if (alive) location.hash = "#/";
       } else if (Date.now() - started > 150000) {
         clearInterval(polling);
         if (alive) {
@@ -107,7 +120,7 @@ export function renderVerify(el, _p, user) {
           btn.textContent = "Verify";
         }
       }
-    }, 4000);
+    }, 2000);
   };
 
   return () => {

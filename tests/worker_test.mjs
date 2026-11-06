@@ -320,4 +320,98 @@ await test("email codes need server config (no secret -> 500, never a weak code)
   env.MAIL_KEY = savedKey;
 });
 
+/* ---------- fast path: direct verify + SMTP (faked) ---------- */
+import { generateKeyPairSync } from "node:crypto";
+import { smtpSend, buildMessage } from "../worker/src/smtp.js";
+const { privateKey: saKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+env.FIREBASE_SERVICE_ACCOUNT = JSON.stringify({ client_email: "sa@test.iam.gserviceaccount.com", private_key: saKey });
+let updates = [], failUpdate = false;
+const baseFetch = globalThis.fetch;
+globalThis.fetch = async (url, init = {}) => {
+  url = String(url);
+  if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
+  if (url.includes("identitytoolkit.googleapis.com")) {
+    if (failUpdate) return new Response("{}", { status: 500 });
+    updates.push({ url, auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    return new Response("{}", { status: 200 });
+  }
+  return baseFetch(url, init);
+};
+await test("email/verify: right code marks the account verified RIGHT AWAY (no workflow)", async () => {
+  reset();
+  await sendCodeReq();
+  const code = await issuedCode();
+  dispatches.length = 0; updates = [];
+  const r = await verifyReq(code);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.done, true);
+  assert.equal(dispatches.length, 0);
+  assert.deepEqual(updates[0].body, { localId: "user1", emailVerified: true });
+  assert.equal(updates[0].auth, "Bearer tok");
+});
+await test("email/verify: if the direct update fails, the workflow is the fallback", async () => {
+  reset();
+  await sendCodeReq();
+  const code = await issuedCode();
+  dispatches.length = 0; failUpdate = true;
+  const r = await verifyReq(code);
+  failUpdate = false;
+  assert.equal(r.status, 200);
+  assert.deepEqual(dispatches.at(-1), { wf: "verify-email.yml", ref: "main", inputs: { uid: "user1" } });
+});
+
+// A tiny fake SMTP server behind the `connect` function.
+function fakeSmtp({ rejectAuth = false } = {}) {
+  const seen = [];
+  const enc = new TextEncoder();
+  let push;
+  const readable = new ReadableStream({ start(c) { push = (s) => c.enqueue(enc.encode(s)); push("220 smtp.test ready\r\n"); } });
+  let inData = false, dataBuf = "", stage = 0;
+  const writable = new WritableStream({
+    write(chunk) {
+      const t = new TextDecoder().decode(chunk);
+      if (inData) {
+        dataBuf += t;
+        if (dataBuf.endsWith("\r\n.\r\n")) { inData = false; seen.push({ data: dataBuf }); push("250 queued\r\n"); }
+        return;
+      }
+      const line = t.replace(/\r\n$/, "");
+      seen.push(line);
+      if (line.startsWith("EHLO")) push("250-smtp.test\r\n250-AUTH LOGIN\r\n250 OK\r\n");
+      else if (line === "AUTH LOGIN") { stage = 1; push("334 VXNlcm5hbWU6\r\n"); }
+      else if (stage === 1) { stage = 2; push("334 UGFzc3dvcmQ6\r\n"); }
+      else if (stage === 2) { stage = 3; push(rejectAuth ? "535 bad credentials\r\n" : "235 ok\r\n"); }
+      else if (line.startsWith("MAIL FROM") || line.startsWith("RCPT TO")) push("250 ok\r\n");
+      else if (line === "DATA") { inData = true; push("354 go\r\n"); }
+      else if (line === "QUIT") push("221 bye\r\n");
+    },
+  });
+  return { seen, connect: () => ({ readable, writable, close: async () => {} }) };
+}
+await test("smtp: sends a multipart mail after a normal AUTH LOGIN dialogue", async () => {
+  const f = fakeSmtp();
+  await smtpSend(f.connect, { host: "smtp.test", port: 465, user: "bot@x.test", pass: "pw", to: "dev@x.test", subject: "123456 is your code", text: "plain 123456", html: "<b>123456</b>" });
+  assert.ok(f.seen.includes("MAIL FROM:<bot@x.test>") && f.seen.includes("RCPT TO:<dev@x.test>"));
+  const msg = f.seen.find((x) => x.data).data;
+  assert.match(msg, /multipart\/alternative/);
+  assert.match(msg, /Subject: =\?UTF-8\?B\?/);
+  const b64 = msg.split("Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n")[1].split("\r\n--")[0].replace(/\r\n/g, "");
+  assert.equal(Buffer.from(b64, "base64").toString(), "plain 123456");
+});
+await test("smtp: wrong credentials -> error, no mail sent; header injection refused", async () => {
+  const f = fakeSmtp({ rejectAuth: true });
+  await assert.rejects(smtpSend(f.connect, { host: "smtp.test", user: "bot@x.test", pass: "bad", to: "dev@x.test", subject: "s", text: "t" }), /535/);
+  assert.ok(!f.seen.some((x) => x.data));
+  await assert.rejects(smtpSend(fakeSmtp().connect, { host: "smtp.test", user: "bot@x.test", pass: "pw", to: "dev@x.test\r\nBcc: evil@x.test", subject: "s", text: "t" }), /bad mail field/);
+});
+await test("email/send: SMTP configured but unavailable here -> falls back to the workflow", async () => {
+  reset();
+  env.SMTP_USER = "bot@x.test"; env.SMTP_PASS = "pw";
+  const r = await sendCodeReq();
+  delete env.SMTP_USER; delete env.SMTP_PASS;
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.via, "workflow");
+  assert.equal(dispatches.at(-1).wf, "send-code.yml");
+});
+
 console.log(`\n${passed} worker tests passed`);

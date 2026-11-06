@@ -2,6 +2,9 @@
 // Verifies the Firebase login token, then stores files in a *draft* GitHub release
 // (drafts are invisible to the public) and queues the review bot.
 
+import { smtpSend } from './smtp.js';
+import { setEmailVerified } from './gauth.js';
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -227,7 +230,7 @@ async function dispatch(env, workflow, inputs) {
   });
   if (!r.ok) {
     console.error('Dispatch failed', workflow, r.status, await r.text());
-    throw new HttpError(502, 'Could not start the email bot. Please try again.');
+    throw new HttpError(502, 'Could not send the email. Please try again.');
   }
 }
 
@@ -238,6 +241,48 @@ function assertMailConfigured(env) {
     keyLen = bytesFromBase64((env.MAIL_KEY || '').trim()).length;
   } catch { /* invalid base64 */ }
   if (!env.CODE_SECRET || keyLen !== 32) throw new HttpError(500, 'Email codes are not configured');
+}
+
+function codeEmail(code, name) {
+  const hello = name ? `Hi ${name.replace(/[^\p{L}\p{N} .'-]/gu, '').slice(0, 40).trim()},` : 'Hi,';
+  const text = `${hello}\n\nYour AR DroidHub verification code is:\n\n    ${code}\n\nEnter it on the website to verify your email address. The code works for at least 10 minutes.\n\nIf you did not create an AR DroidHub account, you can ignore this email.\n`;
+  const html = '<div style="background:#f6f8f9;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#1f2328">'
+    + '<div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e1e5e9;border-radius:14px;overflow:hidden">'
+    + '<div style="background:#01875f;color:#fff;padding:18px 24px;font-size:18px;font-weight:700">Verify your email</div>'
+    + `<div style="padding:24px"><p style="margin:0 0 14px">${hello.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`
+    + '<p style="margin:0 0 14px">Your AR DroidHub verification code is:</p>'
+    + `<p style="margin:0 0 18px;font-size:34px;letter-spacing:8px;font-weight:700;color:#016b4c">${code}</p>`
+    + '<p style="margin:0 0 10px;color:#5f6872;font-size:14px">Enter it on the website. The code works for at least 10 minutes.</p>'
+    + '<p style="margin:0;color:#5f6872;font-size:14px">If you did not create an AR DroidHub account, ignore this email.</p>'
+    + '</div></div></div>';
+  return { text, html };
+}
+
+// Fast path: the Worker sends the mail itself over SMTP (1-3 seconds). If that is not set up or
+// fails, fall back to the GitHub Actions workflow (slower, but it always worked).
+async function deliverCode(env, auth, code) {
+  if (env.SMTP_USER && env.SMTP_PASS) {
+    try {
+      const { connect } = await import('cloudflare:sockets');
+      const { text, html } = codeEmail(code, auth.name);
+      await smtpSend(connect, {
+        host: env.SMTP_HOST || 'smtp.gmail.com',
+        port: Number(env.SMTP_PORT || 465),
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
+        to: auth.email,
+        subject: `${code} is your AR DroidHub verification code`,
+        text,
+        html,
+      });
+      return 'smtp';
+    } catch (e) {
+      console.error('SMTP send failed, using the workflow instead:', e && e.message);
+    }
+  }
+  const payload = await encryptForBot(env, { to: auth.email, code, name: auth.name, ts: Date.now() });
+  await dispatch(env, 'send-code.yml', { payload });
+  return 'workflow';
 }
 
 async function handleEmailSend(request, env) {
@@ -261,9 +306,8 @@ async function handleEmailSend(request, env) {
   );
 
   const code = await makeCode(env, auth.uid, auth.email, codeWindow());
-  const payload = await encryptForBot(env, { to: auth.email, code, name: auth.name, ts: Date.now() });
-  await dispatch(env, 'send-code.yml', { payload });
-  return { ok: true, resendIn: RESEND_SECONDS };
+  const via = await deliverCode(env, auth, code);
+  return { ok: true, resendIn: RESEND_SECONDS, via };
 }
 
 async function handleEmailVerify(request, env) {
@@ -287,6 +331,13 @@ async function handleEmailVerify(request, env) {
   const ok = wanted.some((w) => safeEqual(w, code));
   if (!ok) throw new HttpError(400, 'That code is wrong or has expired. Ask for a new code.');
 
+  // Fast path: mark the account verified right now. Fall back to the workflow if that fails.
+  try {
+    await setEmailVerified(env, auth.uid);
+    return { ok: true, done: true };
+  } catch (e) {
+    console.error('Direct verify failed, using the workflow instead:', e && e.message);
+  }
   await dispatch(env, 'verify-email.yml', { uid: auth.uid });
   return { ok: true };
 }

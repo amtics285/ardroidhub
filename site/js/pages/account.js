@@ -2,7 +2,8 @@ import {
   auth, db, doc, getDoc, setDoc, updateDoc, serverTimestamp, updateProfile, sendPasswordResetEmail,
 } from "../fb.js";
 import { html, render, $, toast, badge } from "../ui.js";
-import { me, setDev, initial, setNext } from "../state.js";
+import { me, setDev, initial } from "../state.js";
+import { icon } from "../icons.js";
 
 function needLogin(user, msg) {
   if (user) return false;
@@ -17,7 +18,7 @@ export function renderAccount(el, _p, user) {
   render(el, html`
     <div class="account">
       <section class="card pad account-head">
-        <div class="avatar big" aria-hidden="true">${initial(user)}</div>
+        <div class="avatar big" aria-hidden="true">${initial(user) || icon("user", 36)}</div>
         <div class="grow">
           <h1>${user.displayName || "Your account"}</h1>
           <div class="muted">${user.email}</div>
@@ -38,7 +39,8 @@ export function renderAccount(el, _p, user) {
       <section class="card pad">
         <h2>Developer</h2>
         ${dev
-          ? html`<p><b>${dev.name}</b> <span class="muted">(${dev.devType === "company" ? "Company" : "Individual"})</span></p>
+          ? html`<p><b>${dev.name}</b></p>
+                 ${dev.about ? html`<p class="muted pre">${dev.about}</p>` : ""}
                  <p class="actions"><a class="btn" href="#/upload">Publish an app</a>
                  <a class="btn ghost" href="#/dashboard">Developer dashboard</a></p>`
           : html`<p class="muted">Want to publish your own Android apps on AR DroidHub? It is free.</p>
@@ -87,11 +89,8 @@ export async function renderProfile(el, _p, user) {
           <h2 class="section-title">Developer profile</h2>
           <label>Developer name <small>(shown on your apps; changes apply to apps you publish from now on)</small>
             <input name="devName" type="text" minlength="2" maxlength="60" value="${dev.name}" required></label>
-          <label>Developer type
-            <select name="devType">
-              <option value="individual" ${dev.devType === "company" ? "" : "selected"}>Individual</option>
-              <option value="company" ${dev.devType === "company" ? "selected" : ""}>Company</option>
-            </select></label>
+          <label>About you <small>(optional, up to 200 characters)</small>
+            <textarea name="about" rows="3" maxlength="200" placeholder="Tell users a little about you or your team">${dev.about || ""}</textarea></label>
           <label>Website <small>(optional)</small>
             <input name="website" type="url" maxlength="200" value="${dev.website || ""}" placeholder="https://"></label>` : ""}
         <p class="error" id="err" hidden></p>
@@ -121,7 +120,8 @@ export async function renderProfile(el, _p, user) {
       await updateProfile(user, { displayName: name });
       await updateDoc(doc(db, "developersPrivate", user.uid), { phone: f.phone.value.trim() });
       if (dev) {
-        const next = { name: f.devName.value.trim(), devType: f.devType.value, website, createdAt: dev.createdAt };
+        const next = { name: f.devName.value.trim(), about: f.about.value.trim(), website, createdAt: dev.createdAt };
+        if (dev.devType) next.devType = dev.devType; // old field, kept as it was
         await updateDoc(doc(db, "developers", user.uid), next);
         setDev(next);
       }
@@ -143,9 +143,9 @@ export function renderBecomeDeveloper(el, _p, user) {
     return;
   }
   if (!user.emailVerified) {
-    toast("Please verify your email first.");
-    setNext("#/become-developer");
-    location.hash = "#/verify";
+    render(el, html`<div class="empty"><h2>Verify your email first</h2>
+      <p>Enter the 6-digit code we email to <b>${user.email}</b>, then come back and press <b>Become a developer</b>.</p>
+      <p><a class="btn" href="#/verify">Enter email code</a></p></div>`);
     return;
   }
   render(el, html`
@@ -155,8 +155,8 @@ export function renderBecomeDeveloper(el, _p, user) {
       <form id="f" novalidate>
         <label>Developer name <small>(shown on your apps)</small>
           <input name="name" type="text" minlength="2" maxlength="60" value="${user.displayName || ""}" required></label>
-        <label>Developer type
-          <select name="devType"><option value="individual">Individual</option><option value="company">Company</option></select></label>
+        <label>About you <small>(optional, up to 200 characters)</small>
+          <textarea name="about" rows="3" maxlength="200" placeholder="Tell users a little about you or your team"></textarea></label>
         <label>Website <small>(optional)</small>
           <input name="website" type="url" maxlength="200" placeholder="https://"></label>
         <label class="check"><input name="terms" type="checkbox" required>
@@ -181,8 +181,9 @@ export function renderBecomeDeveloper(el, _p, user) {
     btn.disabled = true;
     btn.textContent = "Saving…";
     try {
-      await setDoc(doc(db, "developers", user.uid), { name, devType: f.devType.value, website, createdAt: serverTimestamp() });
-      setDev({ name, devType: f.devType.value, website });
+      const about = f.about.value.trim();
+      await setDoc(doc(db, "developers", user.uid), { name, about, website, createdAt: serverTimestamp() });
+      setDev({ name, about, website });
       toast("You are a developer now. You can publish your first app.", "ok");
       location.hash = "#/upload";
     } catch (ex) {

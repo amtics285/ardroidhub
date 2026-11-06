@@ -62,7 +62,7 @@ function drawerContent(user) {
   }
   return html`
     <div class="drawer-head">
-      <div class="avatar" aria-hidden="true">${initial(user)}</div>
+      <div class="avatar" aria-hidden="true">${initial(user) || icon("user", 22)}</div>
       <div class="drawer-who"><b>${user.displayName || "Your account"}</b><span class="muted small">${user.email}</span></div>
     </div>
     ${item("#/", "home", "Home")}
@@ -79,7 +79,7 @@ function drawerContent(user) {
 
 function setNav(user) {
   render($("#nav"), user
-    ? html`<a class="avatar" href="#/account" title="Your account" aria-label="Your account">${initial(user)}</a>`
+    ? html`<a class="avatar" href="#/account" title="Your account" aria-label="Your account">${initial(user) || icon("user", 22)}</a>`
     : html`<a class="navlink" href="#/login">Log in</a><a class="btn small" href="#/register">Sign up</a>`);
   render(drawer, html`
     <div class="drawer-top">

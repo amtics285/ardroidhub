@@ -21,20 +21,9 @@ export function setDev(data) {
 
 export const isDev = () => !!me.dev;
 
+// First letter of the person's name, or "" (then the pages show a person icon instead of a digit).
 export function initial(user) {
-  const n = (user && (user.displayName || user.email)) || "?";
-  return n.trim().charAt(0).toUpperCase();
+  const first = [...String((user && user.displayName) || (user && user.email) || "").trim()][0] || "";
+  return /^\p{L}$/u.test(first) ? first.toUpperCase() : "";
 }
 
-// "Where to go after verifying the email" (set when a page needs a verified account).
-export function setNext(hash) {
-  try { sessionStorage.setItem("next", hash); } catch { /* private mode */ }
-}
-export function takeNext(fallback) {
-  try {
-    const n = sessionStorage.getItem("next");
-    sessionStorage.removeItem("next");
-    if (n && /^#\/[\w/?=&%-]*$/.test(n)) return n;
-  } catch { /* ignore */ }
-  return fallback;
-}

@@ -46,3 +46,9 @@ for (const f of files) {
   }
 }
 console.log(`ui tests passed (${checked} imports checked across ${files.length} files)`);
+
+// regression: password fields get an eye <button>, so submit handlers must not grab "the first button"
+for (const f of ["site/js/pages/auth.js"]) {
+  assert.ok(!/querySelector\("button"\)/.test(fs.readFileSync(f, "utf8")), f + " must use button[type=submit]");
+}
+console.log("regression checks passed");
